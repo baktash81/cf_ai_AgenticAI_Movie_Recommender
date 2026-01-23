@@ -118,9 +118,17 @@ deploy_backend() {
     echo -e "${YELLOW}Deploying to Cloudflare Workers...${NC}"
     # Use API token if available (for CI/CD), otherwise use login
     if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+        echo -e "${BLUE}Using Cloudflare API token for authentication...${NC}"
         export CLOUDFLARE_API_TOKEN
+        export CLOUDFLARE_ACCOUNT_ID
+        # Verify wrangler can see the token
+        if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo -e "${RED}ERROR: CLOUDFLARE_API_TOKEN is empty!${NC}"
+            exit 1
+        fi
         npx wrangler deploy --env=""
     else
+        echo -e "${YELLOW}No API token found, using wrangler login...${NC}"
         npx wrangler deploy --env=""
     fi
     

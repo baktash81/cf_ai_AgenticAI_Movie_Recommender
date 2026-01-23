@@ -28,7 +28,23 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "Deploying backend to Cloudflare Workers..."
+          
+          # Verify secrets are set
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "ERROR: CLOUDFLARE_API_TOKEN secret is not set!"
+            echo "Add it in: Settings → Secrets → Actions"
+            exit 1
+          fi
+          
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "ERROR: CLOUDFLARE_ACCOUNT_ID secret is not set!"
+            exit 1
+          fi
+          
+          echo "✓ Secrets verified"
           npm install
+          
+          # Wrangler automatically uses CLOUDFLARE_API_TOKEN env var
           npx wrangler deploy --env=""
       
       # Build Frontend
