@@ -116,7 +116,13 @@ deploy_backend() {
     
     # Deploy to Cloudflare
     echo -e "${YELLOW}Deploying to Cloudflare Workers...${NC}"
-    npx wrangler deploy --env=""
+    # Use API token if available (for CI/CD), otherwise use login
+    if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+        export CLOUDFLARE_API_TOKEN
+        npx wrangler deploy --env=""
+    else
+        npx wrangler deploy --env=""
+    fi
     
     echo -e "${GREEN}✓ Backend deployed successfully${NC}"
 }

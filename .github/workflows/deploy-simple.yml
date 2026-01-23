@@ -24,8 +24,13 @@ jobs:
           fi
       
       - name: Deploy using deploy script
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           chmod +x deploy-all.sh
+          export CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN"
+          export CLOUDFLARE_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID"
           ./deploy-all.sh
       
       - name: Deployment Summary
