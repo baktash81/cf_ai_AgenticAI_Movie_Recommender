@@ -82,12 +82,36 @@ export interface ChatMessage {
   timestamp: Date;
   searchId?: string;
   movies?: Movie[];
+  isLoadingMovies?: boolean;
 }
 
 export interface ChatResponse {
   type: 'recommendation' | 'chat';
   message: string;
   searchId?: string;
+  conversationId?: string;
+  messageId?: string;
+  movies?: Movie[]; // For filtered results returned directly
+}
+
+// Conversation types
+export interface Conversation {
+  conversation_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationWithMessages {
+  conversation: Conversation;
+  messages: Array<{
+    message_id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    search_id?: string;
+    movies?: Movie[];
+    created_at: string;
+  }>;
 }
 
 // Watchlist types

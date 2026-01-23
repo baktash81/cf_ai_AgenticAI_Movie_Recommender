@@ -33,9 +33,6 @@ export class MovieRecommendationAgent extends Agent<Env, MovieSearchState> {
       return { searchId };
     }
     
-    // Get user preferences for personalization
-    const userPrefs = await this.getUserPreferences(request.userId);
-    
     // Start the search workflow
     const searchId = `search-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
@@ -44,7 +41,6 @@ export class MovieRecommendationAgent extends Agent<Env, MovieSearchState> {
         criteria,
         agentId: searchId,
         userId: request.userId,
-        userPreferences: userPrefs || undefined,
       }
     });
     
@@ -100,6 +96,60 @@ export class MovieRecommendationAgent extends Agent<Env, MovieSearchState> {
   
   @callable()
   async getSearchStatus(searchId: string): Promise<{ status: string; resultCount?: number }> {
+    // First check database for most up-to-date status
+    const dbSearch = await this.env.MOVIE_DB.prepare(`
+      SELECT status FROM movie_searches WHERE search_id = ?
+    `).bind(searchId).first<{ status: string }>();
+    
+    if (dbSearch) {
+      // If completed, get actual result count from database
+      if (dbSearch.status === 'completed') {
+        const resultCount = await this.env.MOVIE_DB.prepare(`
+          SELECT COUNT(*) as count FROM movie_results 
+          WHERE search_id = ? AND expires_at > datetime('now')
+        `).bind(searchId).first<{ count: number }>();
+        
+        // Also try to get count from stored results
+        const storedResults = await this.env.MOVIE_DB.prepare(`
+          SELECT movie_data FROM movie_results 
+          WHERE search_id = ? AND expires_at > datetime('now')
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).bind(searchId).first<{ movie_data: string }>();
+        
+        let actualCount = 0;
+        if (storedResults) {
+          try {
+            const movies = JSON.parse(storedResults.movie_data) as MovieResult[];
+            actualCount = movies.length;
+          } catch (e) {
+            actualCount = resultCount?.count || 0;
+          }
+        }
+        
+        // Update agent state with actual count
+        const currentState = this.state || { activeSearches: [] };
+        const searchIndex = (currentState.activeSearches || []).findIndex(s => s.id === searchId);
+        if (searchIndex >= 0) {
+          const updatedSearches = [...(currentState.activeSearches || [])];
+          updatedSearches[searchIndex] = {
+            ...updatedSearches[searchIndex],
+            status: 'completed',
+            resultCount: actualCount,
+          };
+          this.setState({
+            ...currentState,
+            activeSearches: updatedSearches,
+          });
+        }
+        
+        return { status: 'completed', resultCount: actualCount };
+      }
+      
+      return { status: dbSearch.status, resultCount: 0 };
+    }
+    
+    // Fallback to agent state
     const currentState = this.state || { activeSearches: [] };
     const search = (currentState.activeSearches || []).find(s => s.id === searchId);
     
@@ -107,12 +157,7 @@ export class MovieRecommendationAgent extends Agent<Env, MovieSearchState> {
       return { status: search.status, resultCount: search.resultCount };
     }
     
-    // Check database
-    const dbSearch = await this.env.MOVIE_DB.prepare(`
-      SELECT status FROM movie_searches WHERE search_id = ?
-    `).bind(searchId).first<{ status: string }>();
-    
-    return { status: dbSearch?.status || 'unknown' };
+    return { status: 'unknown' };
   }
   
   private async parseMovieRequest(request: MovieRequest): Promise<MovieCriteria> {

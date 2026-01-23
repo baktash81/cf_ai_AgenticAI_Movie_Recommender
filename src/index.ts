@@ -674,7 +674,203 @@ export default {
         }
       }
 
-      // Route: POST /chat - Chat with movie recommendation AI (protected)
+      // ==================== CHAT HISTORY ROUTES ====================
+
+      // Route: GET /conversations - List user's conversations (protected)
+      if (path === '/conversations' && method === 'GET') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const results = await env.MOVIE_DB.prepare(`
+            SELECT conversation_id, title, created_at, updated_at
+            FROM chat_conversations
+            WHERE user_id = ?
+            ORDER BY updated_at DESC
+            LIMIT 50
+          `).bind(auth.userId).all();
+          
+          return new Response(
+            JSON.stringify({ conversations: results.results || [] }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to get conversations' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: POST /conversations - Create a new conversation (protected)
+      if (path === '/conversations' && method === 'POST') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const body = await request.json() as { title?: string };
+        const conversationId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        try {
+          await env.MOVIE_DB.prepare(`
+            INSERT INTO chat_conversations (conversation_id, user_id, title, created_at, updated_at)
+            VALUES (?, ?, ?, datetime('now'), datetime('now'))
+          `).bind(conversationId, auth.userId, body.title || 'New Chat').run();
+          
+          return new Response(
+            JSON.stringify({ 
+              conversationId, 
+              title: body.title || 'New Chat',
+              createdAt: new Date().toISOString() 
+            }),
+            { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to create conversation' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /conversations/:id - Get conversation with messages (protected)
+      if (path.startsWith('/conversations/') && method === 'GET' && !path.includes('/messages')) {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const conversationId = path.split('/conversations/')[1];
+        
+        try {
+          // Get conversation
+          const conversation = await env.MOVIE_DB.prepare(`
+            SELECT conversation_id, title, created_at, updated_at
+            FROM chat_conversations
+            WHERE conversation_id = ? AND user_id = ?
+          `).bind(conversationId, auth.userId).first();
+          
+          if (!conversation) {
+            return new Response(
+              JSON.stringify({ error: 'Conversation not found' }),
+              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          // Get messages
+          const messages = await env.MOVIE_DB.prepare(`
+            SELECT message_id, role, content, search_id, movies_data, created_at
+            FROM chat_messages
+            WHERE conversation_id = ?
+            ORDER BY created_at ASC
+          `).bind(conversationId).all();
+          
+          // Parse movies_data JSON for each message
+          const parsedMessages = (messages.results || []).map((msg: any) => ({
+            ...msg,
+            movies: msg.movies_data ? JSON.parse(msg.movies_data) : null,
+          }));
+          
+          return new Response(
+            JSON.stringify({ 
+              conversation,
+              messages: parsedMessages
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to get conversation' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: DELETE /conversations/:id - Delete conversation (protected)
+      if (path.startsWith('/conversations/') && method === 'DELETE') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const conversationId = path.split('/conversations/')[1];
+        
+        try {
+          // Delete messages first (due to foreign key)
+          await env.MOVIE_DB.prepare(`
+            DELETE FROM chat_messages WHERE conversation_id = ?
+          `).bind(conversationId).run();
+          
+          // Delete conversation
+          await env.MOVIE_DB.prepare(`
+            DELETE FROM chat_conversations WHERE conversation_id = ? AND user_id = ?
+          `).bind(conversationId, auth.userId).run();
+          
+          return new Response(
+            JSON.stringify({ success: true, message: 'Conversation deleted' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to delete conversation' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: PUT /conversations/:id - Update conversation title (protected)
+      if (path.startsWith('/conversations/') && method === 'PUT') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const conversationId = path.split('/conversations/')[1];
+        const body = await request.json() as { title: string };
+        
+        try {
+          await env.MOVIE_DB.prepare(`
+            UPDATE chat_conversations 
+            SET title = ?, updated_at = datetime('now')
+            WHERE conversation_id = ? AND user_id = ?
+          `).bind(body.title, conversationId, auth.userId).run();
+          
+          return new Response(
+            JSON.stringify({ success: true, title: body.title }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to update conversation' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: POST /chat - Chat with movie recommendation AI (protected, with history)
       if (path === '/chat' && method === 'POST') {
         const auth = await authenticateRequest(request, jwtSecret);
         
@@ -685,83 +881,482 @@ export default {
           );
         }
 
-        const body = await request.json() as { message: string };
-        
-        if (!body.message) {
-          return new Response(
-            JSON.stringify({ error: 'message is required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Get user preferences for context
-        const prefAgentId = env.MOVIE_PREFERENCE_ANALYSIS_AGENT.idFromName(auth.userId);
-        const prefAgent = env.MOVIE_PREFERENCE_ANALYSIS_AGENT.get(prefAgentId);
-        const preferences = await prefAgent.getUserPreferences(auth.userId);
-
-        // Use AI to understand user intent and generate response
-        const { response } = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
-          messages: [{
-            role: "system",
-            content: `You are a helpful movie recommendation assistant. The user has these preferences: ${JSON.stringify(preferences || {})}.
-            
-            When the user asks for movie recommendations, extract search criteria and respond with a JSON object:
-            {
-              "type": "recommendation",
-              "criteria": { "genres": [], "actors": [], "directors": [], "keywords": [], "minRating": number, "releaseDateFrom": "YYYY", "releaseDateTo": "YYYY" },
-              "message": "Your conversational response here"
-            }
-            
-            For other questions, respond with:
-            {
-              "type": "chat",
-              "message": "Your response here"
-            }
-            
-            Always return valid JSON.`
-          }, {
-            role: "user",
-            content: body.message
-          }]
-        });
-
         try {
-          const responseText = response as string;
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
-
-          if (parsed.type === 'recommendation' && parsed.criteria) {
-            // Trigger movie search
-            const agentId = env.MOVIE_RECOMMENDATION_AGENT.idFromName(auth.userId);
-            const agent = env.MOVIE_RECOMMENDATION_AGENT.get(agentId);
-            
-            const searchResult = await agent.recommendMovies({
-              userId: auth.userId,
-              criteria: parsed.criteria,
-              isStructured: true,
-            });
-
+          const body = await request.json() as { message: string; conversationId?: string };
+          
+          if (!body.message) {
             return new Response(
-              JSON.stringify({
-                type: 'recommendation',
-                message: parsed.message,
-                searchId: searchResult.searchId,
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              JSON.stringify({ error: 'message is required' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
 
+          let conversationId = body.conversationId;
+          
+          // Create new conversation if not provided
+          if (!conversationId) {
+            conversationId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            // Generate title from first message (truncated)
+            const title = body.message.length > 50 ? body.message.substring(0, 47) + '...' : body.message;
+            
+            await env.MOVIE_DB.prepare(`
+              INSERT INTO chat_conversations (conversation_id, user_id, title, created_at, updated_at)
+              VALUES (?, ?, ?, datetime('now'), datetime('now'))
+            `).bind(conversationId, auth.userId, title).run();
+          }
+
+          // Save user message
+          const userMessageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          await env.MOVIE_DB.prepare(`
+            INSERT INTO chat_messages (message_id, conversation_id, user_id, role, content, created_at)
+            VALUES (?, ?, ?, 'user', ?, datetime('now'))
+          `).bind(userMessageId, conversationId, auth.userId, body.message).run();
+
+          // Get conversation history for context (last 10 messages) with movies
+          const historyResult = await env.MOVIE_DB.prepare(`
+            SELECT role, content, movies_data, search_id FROM chat_messages
+            WHERE conversation_id = ?
+            ORDER BY created_at DESC
+            LIMIT 10
+          `).bind(conversationId).all();
+          
+          const conversationHistory = (historyResult.results || [])
+            .reverse()
+            .map((msg: any) => ({ role: msg.role, content: msg.content }));
+          
+          // Get previous movies from the conversation (for follow-up filtering)
+          let previousMovies: any[] | null = null;
+          for (const msg of historyResult.results.reverse()) {
+            if (msg.movies_data) {
+              try {
+                previousMovies = JSON.parse(msg.movies_data);
+                break; // Get the most recent movies
+              } catch (e) {
+                console.error('Failed to parse previous movies:', e);
+              }
+            }
+          }
+
+          // Use AI to understand user intent and generate response
+          const aiResult = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+            messages: [
+              {
+                role: "system",
+                content: `You are a helpful movie recommendation assistant.
+
+IMPORTANT: You MUST respond with valid JSON only. No other text.
+
+CONTEXT: ${previousMovies && previousMovies.length > 0 
+  ? `The user previously received ${previousMovies.length} movies. If the user asks to filter, refine, or narrow down these results, respond with type "filter" instead of "recommendation".`
+  : 'This is a new conversation or no previous movies were shown.'}
+
+When the user asks for NEW movie recommendations (not filtering previous results), respond with:
+{
+  "type": "recommendation",
+  "criteria": { 
+    "genres": ["genre1", "genre2"],
+    "actors": ["actor name"],
+    "directors": ["director name"],
+    "keywords": ["keyword"],
+    "minRating": 7.0,
+    "releaseDateFrom": "2020",
+    "releaseDateTo": "2024"
+  },
+  "message": "I'll find some great movies for you!"
+}
+
+When the user asks to FILTER or REFINE previous movie results (e.g., "filter by year 2020-2026", "only show movies from 2020", "show only high rated ones"), respond with:
+{
+  "type": "filter",
+  "filterCriteria": {
+    "releaseDateFrom": "2020",
+    "releaseDateTo": "2026",
+    "minRating": 8.0,
+    "genres": ["Action"],
+    "actors": ["Actor Name"]
+  },
+  "message": "Here are the filtered results!"
+}
+
+GENRE MAPPING RULES:
+- "sci-fi", "scifi", "science fiction", "science-fiction", "SF" → use "Science Fiction"
+- Use proper genre names: "Action", "Comedy", "Drama", "Horror", "Thriller", "Science Fiction", etc.
+
+RATING RULES:
+- "best rated", "top rated", "highest rated" → set minRating to 7.5 or higher
+- "highly rated" → set minRating to 7.0
+- "well rated" → set minRating to 6.5
+- If no rating mentioned, use 6.0 as default
+
+For general questions or clarifications (when NOT recommending or filtering movies), respond with:
+{
+  "type": "chat", 
+  "message": "Your response here"
+}
+
+Always respond with ONLY the JSON object, nothing else.`
+              },
+              ...conversationHistory,
+              { role: "user", content: body.message }
+            ]
+          });
+
+          // Safely extract response as string
+          const responseText = typeof aiResult.response === 'string' 
+            ? aiResult.response 
+            : JSON.stringify(aiResult.response);
+
+          let parsedResponse: any;
+          let searchId: string | null = null;
+          let movies: any[] | null = null;
+
+          // Helper function to detect if response suggests movie recommendations
+          const detectRecommendation = (text: string): boolean => {
+            const lowerText = text.toLowerCase();
+            const recommendationPhrases = [
+              'here are',
+              "i'll find",
+              "let me find",
+              "i found",
+              "showing you",
+              "enjoy!",
+              "movies that fit",
+              "movies for you",
+              "recommendations",
+              "popular movies",
+              "action movies",
+              "sci-fi movies",
+              "thriller movies",
+              "horror movies",
+              "featuring",
+            ];
+            return recommendationPhrases.some(phrase => lowerText.includes(phrase));
+          };
+
+          try {
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            parsedResponse = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+
+            // Check both the parsed message and raw responseText for recommendation signals
+            const messageText = parsedResponse.message || responseText;
+            const shouldRecommend = parsedResponse.type === 'recommendation' || 
+              detectRecommendation(messageText) ||
+              detectRecommendation(responseText);
+
+            // Handle filter requests (apply to previous movies)
+            if (parsedResponse.type === 'filter' && previousMovies && previousMovies.length > 0) {
+              const filterCriteria = parsedResponse.filterCriteria || {};
+              
+              // Apply filters to previous movies
+              let filteredMovies = [...previousMovies];
+              
+              // Filter by release date
+              if (filterCriteria.releaseDateFrom || filterCriteria.releaseDateTo) {
+                filteredMovies = filteredMovies.filter(movie => {
+                  const releaseYear = new Date(movie.releaseDate).getFullYear();
+                  if (filterCriteria.releaseDateFrom) {
+                    const fromYear = parseInt(filterCriteria.releaseDateFrom);
+                    if (releaseYear < fromYear) return false;
+                  }
+                  if (filterCriteria.releaseDateTo) {
+                    const toYear = parseInt(filterCriteria.releaseDateTo);
+                    if (releaseYear > toYear) return false;
+                  }
+                  return true;
+                });
+              }
+              
+              // Filter by rating
+              if (filterCriteria.minRating) {
+                filteredMovies = filteredMovies.filter(movie => 
+                  movie.rating >= filterCriteria.minRating
+                );
+              }
+              
+              // Filter by genres
+              if (filterCriteria.genres && filterCriteria.genres.length > 0) {
+                filteredMovies = filteredMovies.filter(movie => 
+                  movie.genres && movie.genres.some(genre => 
+                    filterCriteria.genres.some(filterGenre => 
+                      genre.toLowerCase().includes(filterGenre.toLowerCase())
+                    )
+                  )
+                );
+              }
+              
+              // Filter by actors
+              if (filterCriteria.actors && filterCriteria.actors.length > 0) {
+                filteredMovies = filteredMovies.filter(movie => 
+                  movie.actors && movie.actors.some(actor => 
+                    filterCriteria.actors.some(filterActor => 
+                      actor.toLowerCase().includes(filterActor.toLowerCase())
+                    )
+                  )
+                );
+              }
+              
+              // Filter by directors
+              if (filterCriteria.directors && filterCriteria.directors.length > 0) {
+                filteredMovies = filteredMovies.filter(movie => 
+                  movie.director && filterCriteria.directors.some(filterDirector => 
+                    movie.director.toLowerCase().includes(filterDirector.toLowerCase())
+                  )
+                );
+              }
+              
+              // Store filtered results
+              movies = filteredMovies;
+              parsedResponse.type = 'recommendation'; // Change to recommendation so frontend handles it
+            } else if (shouldRecommend) {
+              parsedResponse.type = 'recommendation';
+              
+              // If criteria not provided, create empty criteria (no preferences)
+              if (!parsedResponse.criteria) {
+                parsedResponse.criteria = {
+                  genres: [],
+                  actors: [],
+                  directors: [],
+                  minRating: 6.0,
+                };
+              }
+
+              // Normalize genre names (e.g., "sci-fi" -> "Science Fiction")
+              if (parsedResponse.criteria.genres) {
+                parsedResponse.criteria.genres = parsedResponse.criteria.genres.map(genre => {
+                  const normalized = genre.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  if (normalized.includes('scifi') || normalized.includes('sciencefiction') || normalized === 'sf') {
+                    return 'Science Fiction';
+                  }
+                  // Capitalize first letter of each word
+                  return genre.split(' ').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                  ).join(' ');
+                });
+              }
+
+              // Trigger movie search
+              const agentId = env.MOVIE_RECOMMENDATION_AGENT.idFromName(auth.userId);
+              const agent = env.MOVIE_RECOMMENDATION_AGENT.get(agentId);
+              
+              const searchResult = await agent.recommendMovies({
+                userId: auth.userId,
+                criteria: parsedResponse.criteria,
+                isStructured: true,
+              });
+
+              searchId = searchResult.searchId;
+            }
+          } catch (parseError) {
+            // If parsing fails, check if the raw text suggests a recommendation
+            if (detectRecommendation(responseText)) {
+              // Check if we should filter previous movies
+              if (previousMovies && previousMovies.length > 0) {
+                // Try to extract filter criteria from the message
+                const lowerText = responseText.toLowerCase();
+                const filterCriteria: any = {};
+                
+                // Extract year range
+                const yearMatch = responseText.match(/(\d{4})\s*[-to]+\s*(\d{4})/i);
+                if (yearMatch) {
+                  filterCriteria.releaseDateFrom = yearMatch[1];
+                  filterCriteria.releaseDateTo = yearMatch[2];
+                } else {
+                  const singleYear = responseText.match(/\b(19|20)\d{2}\b/);
+                  if (singleYear) {
+                    filterCriteria.releaseDateFrom = singleYear[0];
+                    filterCriteria.releaseDateTo = singleYear[0];
+                  }
+                }
+                
+                // Extract rating
+                if (lowerText.includes('high') || lowerText.includes('best') || lowerText.includes('top')) {
+                  filterCriteria.minRating = 7.5;
+                }
+                
+                // Apply filters if any
+                if (Object.keys(filterCriteria).length > 0) {
+                  let filteredMovies = [...previousMovies];
+                  
+                  if (filterCriteria.releaseDateFrom || filterCriteria.releaseDateTo) {
+                    filteredMovies = filteredMovies.filter(movie => {
+                      const releaseYear = new Date(movie.releaseDate).getFullYear();
+                      if (filterCriteria.releaseDateFrom) {
+                        const fromYear = parseInt(filterCriteria.releaseDateFrom);
+                        if (releaseYear < fromYear) return false;
+                      }
+                      if (filterCriteria.releaseDateTo) {
+                        const toYear = parseInt(filterCriteria.releaseDateTo);
+                        if (releaseYear > toYear) return false;
+                      }
+                      return true;
+                    });
+                  }
+                  
+                  if (filterCriteria.minRating) {
+                    filteredMovies = filteredMovies.filter(movie => 
+                      movie.rating >= filterCriteria.minRating
+                    );
+                  }
+                  
+                  movies = filteredMovies;
+                  parsedResponse = {
+                    type: 'recommendation',
+                    message: responseText,
+                  };
+                } else {
+                  // No clear filter, start new search
+                  const agentId = env.MOVIE_RECOMMENDATION_AGENT.idFromName(auth.userId);
+                  const agent = env.MOVIE_RECOMMENDATION_AGENT.get(agentId);
+                  
+                  const searchResult = await agent.recommendMovies({
+                    userId: auth.userId,
+                    criteria: {
+                      genres: [],
+                      actors: [],
+                      directors: [],
+                      minRating: 6.0,
+                    },
+                    isStructured: true,
+                  });
+
+                  searchId = searchResult.searchId;
+                  parsedResponse = {
+                    type: 'recommendation',
+                    message: responseText,
+                  };
+                }
+              } else {
+                // No previous movies, start new search
+                const agentId = env.MOVIE_RECOMMENDATION_AGENT.idFromName(auth.userId);
+                const agent = env.MOVIE_RECOMMENDATION_AGENT.get(agentId);
+                
+                const searchResult = await agent.recommendMovies({
+                  userId: auth.userId,
+                  criteria: {
+                    genres: [],
+                    actors: [],
+                    directors: [],
+                    minRating: 6.0,
+                  },
+                  isStructured: true,
+                });
+
+                searchId = searchResult.searchId;
+                parsedResponse = {
+                  type: 'recommendation',
+                  message: responseText,
+                };
+              }
+            } else {
+              parsedResponse = {
+                type: 'chat',
+                message: responseText,
+              };
+            }
+          }
+
+          // Final safety check: if we have a searchId but type wasn't set to recommendation, fix it
+          if (searchId && parsedResponse.type !== 'recommendation') {
+            parsedResponse.type = 'recommendation';
+          }
+
+          // Debug logging
+          console.log('Chat response:', {
+            type: parsedResponse.type,
+            hasSearchId: !!searchId,
+            searchId,
+            messagePreview: (parsedResponse.message || responseText).substring(0, 100),
+          });
+
+          // Ensure message is a string
+          const messageContent = typeof parsedResponse.message === 'string' 
+            ? parsedResponse.message 
+            : responseText;
+
+          // Save assistant message
+          const assistantMessageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          
+          // If we have filtered movies (no searchId), save them directly
+          const moviesData = movies ? JSON.stringify(movies) : null;
+          
+          await env.MOVIE_DB.prepare(`
+            INSERT INTO chat_messages (message_id, conversation_id, user_id, role, content, search_id, movies_data, created_at)
+            VALUES (?, ?, ?, 'assistant', ?, ?, ?, datetime('now'))
+          `).bind(
+            assistantMessageId, 
+            conversationId, 
+            auth.userId, 
+            messageContent,
+            searchId || null,
+            moviesData
+          ).run();
+
+          // Update conversation timestamp
+          await env.MOVIE_DB.prepare(`
+            UPDATE chat_conversations SET updated_at = datetime('now') WHERE conversation_id = ?
+          `).bind(conversationId).run();
+
+          // If we have filtered movies (no searchId), include them in response
+          const responseData: any = {
+            type: parsedResponse.type || 'chat',
+            message: messageContent,
+            conversationId,
+            messageId: assistantMessageId,
+          };
+          
+          if (searchId) {
+            responseData.searchId = searchId;
+          }
+          
+          // If we have movies from filtering (not from search), include them directly
+          if (movies && movies.length > 0 && !searchId) {
+            responseData.movies = movies;
+          }
+          
           return new Response(
-            JSON.stringify(parsed),
+            JSON.stringify(responseData),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (chatError) {
+          console.error('Chat error:', chatError);
+          return new Response(
+            JSON.stringify({ 
+              error: 'Failed to process chat message',
+              details: chatError instanceof Error ? chatError.message : 'Unknown error'
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: POST /chat/messages/:conversationId/movies - Save movies to a message
+      if (path.startsWith('/chat/messages/') && path.endsWith('/movies') && method === 'POST') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const pathParts = path.split('/');
+        const messageId = pathParts[3];
+        const body = await request.json() as { movies: any[] };
+        
+        try {
+          await env.MOVIE_DB.prepare(`
+            UPDATE chat_messages SET movies_data = ? WHERE message_id = ? AND user_id = ?
+          `).bind(JSON.stringify(body.movies), messageId, auth.userId).run();
+          
+          return new Response(
+            JSON.stringify({ success: true }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         } catch (error) {
           return new Response(
-            JSON.stringify({
-              type: 'chat',
-              message: response as string,
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            JSON.stringify({ error: 'Failed to save movies' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
       }

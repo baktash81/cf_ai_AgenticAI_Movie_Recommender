@@ -1,0 +1,40 @@
+name: Deploy to Production (Simple)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  deploy:
+    name: Deploy Backend and Frontend
+    runs-on: self-hosted # Must run on your server
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Load environment variables
+        run: |
+          if [ -f .env ]; then
+            set -a
+            source .env
+            set +a
+          fi
+      
+      - name: Deploy using deploy script
+        run: |
+          chmod +x deploy-all.sh
+          ./deploy-all.sh
+      
+      - name: Deployment Summary
+        run: |
+          echo "## 🚀 Deployment Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Backend deployed to Cloudflare Workers" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Frontend deployed to https://movie.baktashans.com" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY

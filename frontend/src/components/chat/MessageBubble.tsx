@@ -1,4 +1,4 @@
-import { User, Bot } from 'lucide-react';
+import { User, Bot, Loader2 } from 'lucide-react';
 import type { ChatMessage } from '../../types';
 import MovieCard from './MovieCard';
 
@@ -37,6 +37,14 @@ export default function MessageBubble({ message }: Props) {
         >
           <p className="whitespace-pre-wrap">{message.content}</p>
         </div>
+
+        {/* Loading indicator for movies */}
+        {message.isLoadingMovies && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Searching for movies...</span>
+          </div>
+        )}
 
         {/* Movie results */}
         {message.movies && message.movies.length > 0 && (

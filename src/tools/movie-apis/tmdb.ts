@@ -235,14 +235,42 @@ export class TMDBAPI {
       'Mystery': 9648,
       'Romance': 10749,
       'Science Fiction': 878,
+      'Sci-Fi': 878,
+      'SciFi': 878,
+      'Science-Fiction': 878,
+      'SF': 878,
       'TV Movie': 10770,
       'Thriller': 53,
       'War': 10752,
       'Western': 37,
     };
     
+    // Normalize genre names for matching
+    const normalizeGenre = (name: string): string => {
+      return name.toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .replace(/scifi|sciencefiction|sf/g, 'sciencefiction');
+    };
+    
     return genreNames
-      .map(name => genreMap[name] || genreMap[name.toLowerCase()])
+      .map(name => {
+        // Try exact match first
+        if (genreMap[name]) return genreMap[name];
+        
+        // Try case-insensitive match
+        const lowerName = name.toLowerCase();
+        if (genreMap[lowerName]) return genreMap[lowerName];
+        
+        // Try normalized match
+        const normalized = normalizeGenre(name);
+        for (const [key, value] of Object.entries(genreMap)) {
+          if (normalizeGenre(key) === normalized) {
+            return value;
+          }
+        }
+        
+        return undefined;
+      })
       .filter(id => id !== undefined) as number[];
   }
 

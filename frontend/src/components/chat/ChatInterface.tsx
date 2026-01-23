@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, FormEvent } from 'react';
-import { Send, Loader2, Trash2 } from 'lucide-react';
-import { useChat } from '../../hooks/useMovies';
+import { Send, Loader2, Plus } from 'lucide-react';
+import { useChatContext } from '../../context/ChatContext';
 import MessageBubble from './MessageBubble';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
 
 export default function ChatInterface({ initialQuery }: Props) {
   const [input, setInput] = useState('');
-  const { messages, isLoading, sendMessage, clearMessages } = useChat();
+  const { messages, isLoading, sendMessage, startNewConversation } = useChatContext();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -106,11 +106,11 @@ export default function ChatInterface({ initialQuery }: Props) {
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
         {messages.length > 0 && (
           <button
-            onClick={clearMessages}
+            onClick={startNewConversation}
             className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 mb-3"
           >
-            <Trash2 className="h-4 w-4" />
-            Clear conversation
+            <Plus className="h-4 w-4" />
+            New conversation
           </button>
         )}
         

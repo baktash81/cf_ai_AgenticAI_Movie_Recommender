@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { moviesApi, watchlistApi, preferencesApi, chatApi } from '../services/api';
-import type { Movie, ChatMessage, ChatResponse } from '../types';
+import { moviesApi, watchlistApi, preferencesApi, conversationsApi } from '../services/api';
+import type { Movie } from '../types';
 import { useState, useCallback } from 'react';
 
 export function useMovieSearch() {
@@ -97,83 +97,39 @@ export function usePreferences() {
   };
 }
 
-export function useChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+// Note: useChat hook has been moved to ChatContext.tsx as useChatContext
+// This hook is kept for backward compatibility but should not be used
+// Use useChatContext from '../../context/ChatContext' instead
 
-  const sendMessage = useCallback(async (content: string) => {
-    // Add user message
-    const userMessage: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      content,
-      timestamp: new Date(),
-    };
-    setMessages(prev => [...prev, userMessage]);
-    setIsLoading(true);
+export function useConversations() {
+  const queryClient = useQueryClient();
 
-    try {
-      const response = await chatApi.send(content);
-      
-      let movies: Movie[] | undefined;
-      
-      // If it's a recommendation, fetch the results
-      if (response.type === 'recommendation' && response.searchId) {
-        // Poll for results
-        let attempts = 0;
-        const maxAttempts = 30;
-        
-        while (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          const status = await moviesApi.getStatus(response.searchId);
-          
-          if (status.status === 'completed') {
-            const results = await moviesApi.getResults(response.searchId);
-            movies = results.movies;
-            break;
-          }
-          
-          if (status.status === 'failed') {
-            break;
-          }
-          
-          attempts++;
-        }
-      }
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: conversationsApi.list,
+  });
 
-      // Add assistant message
-      const assistantMessage: ChatMessage = {
-        id: `msg-${Date.now()}-response`,
-        role: 'assistant',
-        content: response.message,
-        timestamp: new Date(),
-        searchId: response.searchId,
-        movies,
-      };
-      setMessages(prev => [...prev, assistantMessage]);
-    } catch (error) {
-      // Add error message
-      const errorMessage: ChatMessage = {
-        id: `msg-${Date.now()}-error`,
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const deleteMutation = useMutation({
+    mutationFn: conversationsApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
 
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-  }, []);
+  const updateMutation = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) => 
+      conversationsApi.update(id, title),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
 
   return {
-    messages,
+    conversations: data?.conversations || [],
     isLoading,
-    sendMessage,
-    clearMessages,
+    error,
+    deleteConversation: deleteMutation.mutate,
+    updateConversation: updateMutation.mutate,
+    isDeleting: deleteMutation.isPending,
   };
 }

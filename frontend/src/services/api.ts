@@ -2,12 +2,13 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import type { 
   AuthResponse, 
   User, 
-  Movie, 
   MovieSearchResult, 
   SearchStatus,
   PreferenceAnalysisResult,
   ChatResponse,
-  WatchlistItem 
+  WatchlistItem,
+  Conversation,
+  ConversationWithMessages
 } from '../types';
 
 // Create axios instance
@@ -164,9 +165,39 @@ export const moviesApi = {
 
 // Chat API
 export const chatApi = {
-  send: async (message: string): Promise<ChatResponse> => {
-    const response = await api.post('/chat', { message });
+  send: async (message: string, conversationId?: string): Promise<ChatResponse> => {
+    const response = await api.post('/chat', { message, conversationId });
     return response.data;
+  },
+};
+
+// Conversations API
+export const conversationsApi = {
+  list: async (): Promise<{ conversations: Conversation[] }> => {
+    const response = await api.get('/conversations');
+    return response.data;
+  },
+
+  create: async (title?: string): Promise<{ conversationId: string; title: string; createdAt: string }> => {
+    const response = await api.post('/conversations', { title });
+    return response.data;
+  },
+
+  get: async (conversationId: string): Promise<ConversationWithMessages> => {
+    const response = await api.get(`/conversations/${conversationId}`);
+    return response.data;
+  },
+
+  delete: async (conversationId: string): Promise<void> => {
+    await api.delete(`/conversations/${conversationId}`);
+  },
+
+  update: async (conversationId: string, title: string): Promise<void> => {
+    await api.put(`/conversations/${conversationId}`, { title });
+  },
+
+  saveMoviesToMessage: async (messageId: string, movies: any[]): Promise<void> => {
+    await api.post(`/chat/messages/${messageId}/movies`, { movies });
   },
 };
 

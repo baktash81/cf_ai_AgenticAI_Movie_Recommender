@@ -1,33 +1,133 @@
-import { NavLink } from 'react-router-dom';
-import { MessageSquare, User, Home, Bookmark } from 'lucide-react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { MessageSquare, User, Home, Plus, Trash2, Clock } from 'lucide-react';
+import { useConversations } from '../../hooks/useMovies';
 
-const navItems = [
-  { to: '/', icon: Home, label: 'Home' },
-  { to: '/chat', icon: MessageSquare, label: 'Chat' },
-  { to: '/profile', icon: User, label: 'Profile' },
-];
+interface SidebarProps {
+  onSelectConversation?: (conversationId: string) => void;
+  onNewChat?: () => void;
+  currentConversationId?: string | null;
+}
 
-export default function Sidebar() {
+export default function Sidebar({ onSelectConversation, onNewChat, currentConversationId }: SidebarProps) {
+  const { conversations, deleteConversation, isDeleting } = useConversations();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleNewChat = () => {
+    if (onNewChat) {
+      onNewChat();
+    }
+    navigate('/chat');
+  };
+
+  const handleSelectConversation = (conversationId: string) => {
+    if (onSelectConversation) {
+      onSelectConversation(conversationId);
+    }
+    navigate('/chat');
+  };
+
+  const handleDeleteConversation = (e: React.MouseEvent, conversationId: string) => {
+    e.stopPropagation();
+    if (confirm('Delete this conversation?')) {
+      deleteConversation(conversationId);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
+  };
+
   return (
     <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 lg:pt-16 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
-      <nav className="flex-1 px-4 py-6 space-y-1">
-        {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                isActive
-                  ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`
-            }
-          >
-            <Icon className="h-5 w-5" />
-            {label}
-          </NavLink>
-        ))}
+      <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+        {/* Main navigation */}
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+              isActive
+                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`
+          }
+        >
+          <Home className="h-5 w-5" />
+          Home
+        </NavLink>
+
+        {/* New Chat button */}
+        <button
+          onClick={handleNewChat}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+            location.pathname === '/chat' && !currentConversationId
+              ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium'
+              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+          }`}
+        >
+          <Plus className="h-5 w-5" />
+          New Chat
+        </button>
+
+        <NavLink
+          to="/profile"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+              isActive
+                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`
+          }
+        >
+          <User className="h-5 w-5" />
+          Profile
+        </NavLink>
+
+        {/* Chat History */}
+        {conversations.length > 0 && (
+          <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 className="px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+              Chat History
+            </h3>
+            <div className="space-y-1">
+              {conversations.slice(0, 10).map((conv) => (
+                <button
+                  key={conv.conversation_id}
+                  onClick={() => handleSelectConversation(conv.conversation_id)}
+                  className={`w-full group flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-left ${
+                    currentConversationId === conv.conversation_id
+                      ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate">{conv.title}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {formatDate(conv.updated_at)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => handleDeleteConversation(e, conv.conversation_id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded transition-opacity"
+                    disabled={isDeleting}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </button>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Pro tip */}
