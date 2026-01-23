@@ -1,0 +1,39 @@
+{
+  "name": "movie-recommendation-system",
+  "version": "1.0.0",
+  "description": "Movie recommendation system on Cloudflare stack",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "echo '⚠️  Dev mode has issues. Use: npm run deploy && npm run tail'",
+    "dev:remote": "npx wrangler dev --remote",
+    "dev:local": "npx wrangler dev",
+    "deploy": "npx wrangler deploy --env=\"\"",
+    "tail": "npx wrangler tail",
+    "deploy:prod": "npx wrangler deploy --env=production",
+    "db:migrate": "npx wrangler d1 migrations apply movie_data --remote",
+    "db:migrate:local": "npx wrangler d1 migrations apply movie_data --local",
+    "db:create": "npx wrangler d1 create movie_data",
+    "db:list": "npx wrangler d1 list",
+    "vectorize:create": "npx wrangler vectorize create user-preferences-index --dimensions=12 --metric=cosine",
+    "vectorize:list": "npx wrangler vectorize list",
+    "setup": "bash setup.sh",
+    "setup:win": "powershell -ExecutionPolicy Bypass -File setup.ps1"
+  },
+  "keywords": [
+    "cloudflare",
+    "agents",
+    "movie-recommendation",
+    "ai",
+    "tmdb"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "agents": "^0.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^4.60.0"
+  }
+}

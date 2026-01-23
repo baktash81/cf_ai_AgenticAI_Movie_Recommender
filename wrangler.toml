@@ -1,0 +1,48 @@
+name = "movie-recommendation-system"
+main = "src/index.ts"
+compatibility_date = "2024-11-27"
+compatibility_flags = ["nodejs_compat"]
+account_id = "95aea7f4a15192de2ccd4a73e424294c"
+
+[env.production]
+name = "movie-recommendation-system"
+
+# Durable Objects bindings for Agents
+[[durable_objects.bindings]]
+name = "MOVIE_RECOMMENDATION_AGENT"
+class_name = "MovieRecommendationAgent"
+
+[[durable_objects.bindings]]
+name = "MOVIE_PREFERENCE_ANALYSIS_AGENT"
+class_name = "MoviePreferenceAnalysisAgent"
+
+# Durable Objects migrations
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MovieRecommendationAgent", "MoviePreferenceAnalysisAgent"]
+
+# Workflows bindings
+[[workflows]]
+name = "MOVIE_SEARCH_WORKFLOW"
+binding = "MOVIE_SEARCH_WORKFLOW"
+class_name = "MovieSearchWorkflow"
+
+# D1 Database bindings
+[[d1_databases]]
+database_name = "movie_data"
+database_id = "f2e22990-7292-4726-bc21-ea6842f24162"
+binding = "MOVIE_DB"
+
+# Vectorize bindings
+[[vectorize]]
+binding = "USER_MOVIE_PREFERENCES_VECTORIZE"
+index_name = "user-preferences-index"
+
+# AI bindings (Workers AI)
+[ai]
+binding = "AI"
+
+# Environment variables
+[vars]
+# API keys will be set via wrangler secret put
+# TMDB_API_KEY
