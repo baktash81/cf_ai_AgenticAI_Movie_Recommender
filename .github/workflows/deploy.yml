@@ -52,19 +52,6 @@ jobs:
           sudo systemctl reload nginx
           echo "Frontend deployed successfully"
       
-      # Deploy Frontend (local deployment on self-hosted runner)
-      - name: Deploy Frontend
-        run: |
-          echo "Deploying frontend..."
-          cd frontend
-          npm install
-          npm run build
-          sudo rm -rf /var/www/movie.baktashans.com/*
-          sudo cp -r dist/* /var/www/movie.baktashans.com/
-          sudo chown -R www-data:www-data /var/www/movie.baktashans.com/
-          sudo systemctl reload nginx
-          echo "Frontend deployed successfully"
-      
       - name: Deployment Summary
         run: |
           echo "## 🚀 Deployment Complete!" >> $GITHUB_STEP_SUMMARY
