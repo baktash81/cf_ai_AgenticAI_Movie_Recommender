@@ -42,6 +42,13 @@ jobs:
           fi
           echo "✓ Cloudflare Account ID is set"
           
+          # Change to project directory
+          cd /root/movie_recommender/AgenticAI_Movie_Recommender
+          
+          # Export for deploy script
+          export CLOUDFLARE_API_TOKEN
+          export CLOUDFLARE_ACCOUNT_ID
+          
           chmod +x deploy-all.sh
           ./deploy-all.sh
       

@@ -9,7 +9,7 @@ on:
 jobs:
   deploy:
     name: Deploy Backend and Frontend
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout code
@@ -27,40 +27,43 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "ERROR: CLOUDFLARE_API_TOKEN is not set!"
+            exit 1
+          fi
           echo "Deploying backend to Cloudflare Workers..."
           npm install
+          export CLOUDFLARE_API_TOKEN
+          export CLOUDFLARE_ACCOUNT_ID
           npx wrangler deploy --env=""
       
-      # Build Frontend
-      - name: Build Frontend
+      # Build and Deploy Frontend
+      - name: Build and Deploy Frontend
         run: |
           echo "Building frontend..."
           cd frontend
           npm install
           npm run build
+          
+          echo "Deploying frontend..."
+          sudo rm -rf /var/www/movie.baktashans.com/*
+          sudo cp -r dist/* /var/www/movie.baktashans.com/
+          sudo chown -R www-data:www-data /var/www/movie.baktashans.com/
+          sudo systemctl reload nginx
+          echo "Frontend deployed successfully"
       
-      # Deploy Frontend to Server via SSH
-      - name: Deploy Frontend to Server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_SSH_PORT || 22 }}
-          source: "frontend/dist/*"
-          target: "/var/www/movie.baktashans.com/"
-          strip_components: 2
-      
-      - name: Reload Nginx
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_SSH_PORT || 22 }}
-          script: |
-            sudo systemctl reload nginx
-            echo "Frontend deployed and nginx reloaded successfully"
+      # Deploy Frontend (local deployment on self-hosted runner)
+      - name: Deploy Frontend
+        run: |
+          echo "Deploying frontend..."
+          cd frontend
+          npm install
+          npm run build
+          sudo rm -rf /var/www/movie.baktashans.com/*
+          sudo cp -r dist/* /var/www/movie.baktashans.com/
+          sudo chown -R www-data:www-data /var/www/movie.baktashans.com/
+          sudo systemctl reload nginx
+          echo "Frontend deployed successfully"
       
       - name: Deployment Summary
         run: |
