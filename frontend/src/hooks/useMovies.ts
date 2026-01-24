@@ -45,14 +45,19 @@ export function useMovieSearch() {
 export function useWatchlist() {
   const queryClient = useQueryClient();
 
-  const { data: watchlist, isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['watchlist'],
-    queryFn: watchlistApi.get,
+    queryFn: () => watchlistApi.list(),
   });
 
   const addMutation = useMutation({
-    mutationFn: ({ movieId, priority }: { movieId: string; priority?: number }) =>
-      watchlistApi.add(movieId, priority),
+    mutationFn: ({ movieId, movieData, priority, notes, tags }: { 
+      movieId: string; 
+      movieData?: Movie;
+      priority?: number;
+      notes?: string;
+      tags?: string[];
+    }) => watchlistApi.add({ movieId, movieData: movieData!, priority: priority as any, notes, tags }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['watchlist'] });
     },
@@ -65,11 +70,22 @@ export function useWatchlist() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ movieId, updates }: { movieId: string; updates: any }) =>
+      watchlistApi.update(movieId, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['watchlist'] });
+    },
+  });
+
   return {
-    watchlist: watchlist?.watchlist || [],
+    watchlist: data?.items || [],
+    totalCount: data?.totalCount || 0,
+    hasReminders: data?.hasReminders || 0,
     isLoading,
     addToWatchlist: addMutation.mutate,
     removeFromWatchlist: removeMutation.mutate,
+    updateWatchlistItem: updateMutation.mutate,
     isAddingToWatchlist: addMutation.isPending,
   };
 }

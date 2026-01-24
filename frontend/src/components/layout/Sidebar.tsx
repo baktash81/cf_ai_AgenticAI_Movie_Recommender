@@ -1,5 +1,5 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { MessageSquare, User, Home, Plus, Trash2, Clock } from 'lucide-react';
+import { MessageSquare, User, Home, Plus, Trash2, Clock, Compass, Bookmark, Film } from 'lucide-react';
 import { useConversations } from '../../hooks/useMovies';
 
 interface SidebarProps {
@@ -77,6 +77,56 @@ export default function Sidebar({ onSelectConversation, onNewChat, currentConver
           New Chat
         </button>
 
+        {/* Discovery & Social */}
+        <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+          <h3 className="px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+            Discover
+          </h3>
+          
+          <NavLink
+            to="/discover"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive
+                  ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`
+            }
+          >
+            <Compass className="h-5 w-5" />
+            Discover
+          </NavLink>
+
+          <NavLink
+            to="/collections"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive
+                  ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`
+            }
+          >
+            <Film className="h-5 w-5" />
+            Collections
+          </NavLink>
+
+          <NavLink
+            to="/watchlist"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive
+                  ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`
+            }
+          >
+            <Bookmark className="h-5 w-5" />
+            Watchlist
+          </NavLink>
+        </div>
+
+        {/* Profile */}
         <NavLink
           to="/profile"
           className={({ isActive }) =>

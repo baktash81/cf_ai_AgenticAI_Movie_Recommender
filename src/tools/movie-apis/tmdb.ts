@@ -348,4 +348,278 @@ export class TMDBAPI {
       return [];
     }
   }
+
+  /**
+   * Get similar movies to a given movie
+   */
+  async getSimilarMovies(movieId: string, limit: number = 10): Promise<MovieResult[]> {
+    try {
+      const url = `${this.baseUrl}/movie/${movieId}/similar?api_key=${this.apiKey}&page=1`;
+      const response = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`TMDB API error: ${response.statusText}`);
+      }
+
+      const data: TMDBResponse = await response.json();
+      
+      const enriched = await Promise.all(
+        data.results.slice(0, limit).map(movie => this.enrichMovieData(movie))
+      );
+
+      return enriched;
+    } catch (error) {
+      console.error('Error getting similar movies:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get movie recommendations (TMDB's recommendation engine)
+   */
+  async getRecommendations(movieId: string, limit: number = 10): Promise<MovieResult[]> {
+    try {
+      const url = `${this.baseUrl}/movie/${movieId}/recommendations?api_key=${this.apiKey}&page=1`;
+      const response = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`TMDB API error: ${response.statusText}`);
+      }
+
+      const data: TMDBResponse = await response.json();
+      
+      const enriched = await Promise.all(
+        data.results.slice(0, limit).map(movie => this.enrichMovieData(movie))
+      );
+
+      return enriched;
+    } catch (error) {
+      console.error('Error getting recommendations:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get watch providers (streaming services) for a movie
+   */
+  async getWatchProviders(movieId: string, region: string = 'US'): Promise<WatchProviders | null> {
+    try {
+      const url = `${this.baseUrl}/movie/${movieId}/watch/providers?api_key=${this.apiKey}`;
+      const response = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`TMDB API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const regionData = data.results?.[region];
+
+      if (!regionData) {
+        return null;
+      }
+
+      return {
+        link: regionData.link,
+        flatrate: (regionData.flatrate || []).map((p: any) => ({
+          providerId: p.provider_id,
+          providerName: p.provider_name,
+          logoPath: p.logo_path ? `https://image.tmdb.org/t/p/original${p.logo_path}` : undefined
+        })),
+        rent: (regionData.rent || []).map((p: any) => ({
+          providerId: p.provider_id,
+          providerName: p.provider_name,
+          logoPath: p.logo_path ? `https://image.tmdb.org/t/p/original${p.logo_path}` : undefined
+        })),
+        buy: (regionData.buy || []).map((p: any) => ({
+          providerId: p.provider_id,
+          providerName: p.provider_name,
+          logoPath: p.logo_path ? `https://image.tmdb.org/t/p/original${p.logo_path}` : undefined
+        }))
+      };
+    } catch (error) {
+      console.error('Error getting watch providers:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get trending movies
+   */
+  async getTrending(timeWindow: 'day' | 'week' = 'week', limit: number = 20): Promise<MovieResult[]> {
+    try {
+      const url = `${this.baseUrl}/trending/movie/${timeWindow}?api_key=${this.apiKey}`;
+      const response = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`TMDB API error: ${response.statusText}`);
+      }
+
+      const data: TMDBResponse = await response.json();
+      
+      const enriched = await Promise.all(
+        data.results.slice(0, limit).map(movie => this.enrichMovieData(movie))
+      );
+
+      return enriched;
+    } catch (error) {
+      console.error('Error getting trending movies:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get person details (actor/director)
+   */
+  async getPersonDetails(personId: number): Promise<PersonDetails | null> {
+    try {
+      const url = `${this.baseUrl}/person/${personId}?api_key=${this.apiKey}&append_to_response=movie_credits`;
+      const response = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`TMDB API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      return {
+        id: data.id,
+        name: data.name,
+        biography: data.biography,
+        birthday: data.birthday,
+        deathday: data.deathday,
+        placeOfBirth: data.place_of_birth,
+        profilePath: data.profile_path ? `${this.imageBaseUrl}${data.profile_path}` : undefined,
+        knownForDepartment: data.known_for_department,
+        popularity: data.popularity,
+        actingCredits: (data.movie_credits?.cast || []).length,
+        directingCredits: (data.movie_credits?.crew || []).filter((c: any) => c.job === 'Director').length
+      };
+    } catch (error) {
+      console.error('Error getting person details:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Search for a person by name
+   */
+  async searchPerson(name: string): Promise<PersonSearchResult[]> {
+    try {
+      const url = `${this.baseUrl}/search/person?api_key=${this.apiKey}&query=${encodeURIComponent(name)}`;
+      const response = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`TMDB API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      return (data.results || []).slice(0, 10).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        profilePath: p.profile_path ? `${this.imageBaseUrl}${p.profile_path}` : undefined,
+        knownForDepartment: p.known_for_department,
+        popularity: p.popularity,
+        knownFor: (p.known_for || []).map((m: any) => m.title || m.name).slice(0, 3)
+      }));
+    } catch (error) {
+      console.error('Error searching person:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get movie collection/franchise
+   */
+  async getCollection(collectionId: number): Promise<MovieCollection | null> {
+    try {
+      const url = `${this.baseUrl}/collection/${collectionId}?api_key=${this.apiKey}`;
+      const response = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      
+      // Enrich all movies in the collection
+      const enrichedMovies = await Promise.all(
+        (data.parts || []).map((movie: TMDBMovie) => this.enrichMovieData(movie))
+      );
+
+      return {
+        id: data.id,
+        name: data.name,
+        overview: data.overview,
+        posterPath: data.poster_path ? `${this.imageBaseUrl}${data.poster_path}` : undefined,
+        backdropPath: data.backdrop_path ? `${this.imageBaseUrl}${data.backdrop_path}` : undefined,
+        movies: enrichedMovies.sort((a, b) => 
+          new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime()
+        )
+      };
+    } catch (error) {
+      console.error('Error getting collection:', error);
+      return null;
+    }
+  }
+}
+
+// Additional types for new methods
+export interface WatchProvider {
+  providerId: number;
+  providerName: string;
+  logoPath?: string;
+}
+
+export interface WatchProviders {
+  link?: string;
+  flatrate: WatchProvider[]; // Streaming subscriptions
+  rent: WatchProvider[];
+  buy: WatchProvider[];
+}
+
+export interface PersonDetails {
+  id: number;
+  name: string;
+  biography?: string;
+  birthday?: string;
+  deathday?: string;
+  placeOfBirth?: string;
+  profilePath?: string;
+  knownForDepartment: string;
+  popularity: number;
+  actingCredits: number;
+  directingCredits: number;
+}
+
+export interface PersonSearchResult {
+  id: number;
+  name: string;
+  profilePath?: string;
+  knownForDepartment: string;
+  popularity: number;
+  knownFor: string[];
+}
+
+export interface MovieCollection {
+  id: number;
+  name: string;
+  overview?: string;
+  posterPath?: string;
+  backdropPath?: string;
+  movies: MovieResult[];
 }

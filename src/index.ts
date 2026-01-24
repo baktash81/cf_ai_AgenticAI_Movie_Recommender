@@ -1361,6 +1361,1239 @@ Always respond with ONLY the JSON object, nothing else.`
         }
       }
 
+      // ==================== PERSONALIZATION ROUTES ====================
+
+      // Route: POST /feedback - Submit movie feedback (like/dislike)
+      if (path === '/feedback' && method === 'POST') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const body = await request.json() as {
+            movieId: string;
+            feedbackType: 'like' | 'dislike' | 'love' | 'not_interested';
+            rating?: number;
+            movieData?: any;
+          };
+
+          if (!body.movieId || !body.feedbackType) {
+            return new Response(
+              JSON.stringify({ error: 'movieId and feedbackType are required' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          const feedbackId = `fb-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          
+          // Upsert feedback
+          await env.MOVIE_DB.prepare(`
+            INSERT INTO movie_feedback (feedback_id, user_id, movie_id, feedback_type, rating, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            ON CONFLICT(user_id, movie_id) DO UPDATE SET 
+              feedback_type = excluded.feedback_type,
+              rating = excluded.rating,
+              updated_at = datetime('now')
+          `).bind(feedbackId, auth.userId, body.movieId, body.feedbackType, body.rating || null).run();
+
+          // Update taste profile
+          await updateTasteProfile(env, auth.userId, body.movieId, body.feedbackType, body.movieData);
+
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              feedbackId,
+              tasteProfileUpdated: true 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('Feedback error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to save feedback' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /feedback/:movieId - Get user's feedback for a movie
+      if (path.startsWith('/feedback/') && method === 'GET') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const movieId = path.split('/feedback/')[1];
+        
+        try {
+          const feedback = await env.MOVIE_DB.prepare(`
+            SELECT * FROM movie_feedback WHERE user_id = ? AND movie_id = ?
+          `).bind(auth.userId, movieId).first();
+
+          return new Response(
+            JSON.stringify({ feedback: feedback || null }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to get feedback' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /taste-profile - Get user's taste profile
+      if (path === '/taste-profile' && method === 'GET') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const profile = await env.MOVIE_DB.prepare(`
+            SELECT * FROM user_taste_profiles WHERE user_id = ?
+          `).bind(auth.userId).first();
+
+          if (!profile) {
+            return new Response(
+              JSON.stringify({ 
+                profile: null,
+                summary: {
+                  topGenres: [],
+                  topActors: [],
+                  topDirectors: [],
+                  preferredDecades: [],
+                  avgRatingPreference: 7.0,
+                  profileStrength: 0,
+                  totalMoviesRated: 0
+                }
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Parse JSON fields and create summary
+          const genreScores = JSON.parse((profile as any).genre_scores || '{}');
+          const actorScores = JSON.parse((profile as any).actor_scores || '{}');
+          const directorScores = JSON.parse((profile as any).director_scores || '{}');
+          const decadeScores = JSON.parse((profile as any).decade_scores || '{}');
+
+          const summary = {
+            topGenres: Object.entries(genreScores)
+              .sort((a, b) => (b[1] as number) - (a[1] as number))
+              .slice(0, 5)
+              .map(([name, score]) => ({ name, score })),
+            topActors: Object.entries(actorScores)
+              .sort((a, b) => (b[1] as number) - (a[1] as number))
+              .slice(0, 5)
+              .map(([name, score]) => ({ name, score })),
+            topDirectors: Object.entries(directorScores)
+              .sort((a, b) => (b[1] as number) - (a[1] as number))
+              .slice(0, 3)
+              .map(([name, score]) => ({ name, score })),
+            preferredDecades: Object.entries(decadeScores)
+              .sort((a, b) => (b[1] as number) - (a[1] as number))
+              .slice(0, 3)
+              .map(([name, score]) => ({ name, score })),
+            avgRatingPreference: (profile as any).avg_rating_preference || 7.0,
+            profileStrength: (profile as any).profile_strength || 0,
+            totalMoviesRated: (profile as any).total_feedback_count || 0
+          };
+
+          return new Response(
+            JSON.stringify({ profile, summary }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('Taste profile error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to get taste profile' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /watch-history - Get user's watch history
+      if (path === '/watch-history' && method === 'GET') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const limit = parseInt(url.searchParams.get('limit') || '50');
+          const offset = parseInt(url.searchParams.get('offset') || '0');
+
+          const history = await env.MOVIE_DB.prepare(`
+            SELECT * FROM watch_history 
+            WHERE user_id = ? 
+            ORDER BY watched_at DESC 
+            LIMIT ? OFFSET ?
+          `).bind(auth.userId, limit, offset).all();
+
+          const total = await env.MOVIE_DB.prepare(`
+            SELECT COUNT(*) as count FROM watch_history WHERE user_id = ?
+          `).bind(auth.userId).first<{ count: number }>();
+
+          return new Response(
+            JSON.stringify({ 
+              items: history.results.map((h: any) => ({
+                ...h,
+                movieData: h.movie_data ? JSON.parse(h.movie_data) : null
+              })),
+              totalCount: total?.count || 0
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to get watch history' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: POST /watch-history - Mark movie as watched
+      if (path === '/watch-history' && method === 'POST') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const body = await request.json() as { movieId: string; movieData?: any };
+          const historyId = `wh-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+          await env.MOVIE_DB.prepare(`
+            INSERT INTO watch_history (history_id, user_id, movie_id, movie_data, watched_at, source)
+            VALUES (?, ?, ?, ?, datetime('now'), 'manual')
+            ON CONFLICT(user_id, movie_id) DO UPDATE SET watched_at = datetime('now')
+          `).bind(historyId, auth.userId, body.movieId, body.movieData ? JSON.stringify(body.movieData) : null).run();
+
+          return new Response(
+            JSON.stringify({ success: true, historyId }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to add to watch history' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // ==================== SOCIAL & ENGAGEMENT ROUTES ====================
+
+      // Route: GET /watchlist - Get user's watchlist
+      if (path === '/watchlist' && method === 'GET') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const sortBy = url.searchParams.get('sortBy') || 'added_at';
+          const sortOrder = url.searchParams.get('sortOrder') || 'DESC';
+          
+          const items = await env.MOVIE_DB.prepare(`
+            SELECT * FROM watchlist 
+            WHERE user_id = ? 
+            ORDER BY ${sortBy === 'priority' ? 'priority DESC,' : ''} added_at ${sortOrder}
+          `).bind(auth.userId).all();
+
+          const reminders = await env.MOVIE_DB.prepare(`
+            SELECT COUNT(*) as count FROM watchlist 
+            WHERE user_id = ? AND reminder_date IS NOT NULL AND reminder_date >= date('now')
+          `).bind(auth.userId).first<{ count: number }>();
+
+          return new Response(
+            JSON.stringify({ 
+              items: items.results.map((item: any) => ({
+                ...item,
+                movieData: JSON.parse(item.movie_data),
+                tags: JSON.parse(item.tags || '[]')
+              })),
+              totalCount: items.results.length,
+              hasReminders: reminders?.count || 0
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('Watchlist error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to get watchlist' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: POST /watchlist - Add to watchlist
+      if (path === '/watchlist' && method === 'POST') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const body = await request.json() as {
+            movieId: string;
+            movieData: any;
+            priority?: number;
+            notes?: string;
+            reminderDate?: string;
+            tags?: string[];
+          };
+
+          if (!body.movieId || !body.movieData) {
+            return new Response(
+              JSON.stringify({ error: 'movieId and movieData are required' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          const watchlistId = `wl-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          
+          await env.MOVIE_DB.prepare(`
+            INSERT INTO watchlist (watchlist_id, user_id, movie_id, movie_data, priority, notes, reminder_date, tags, added_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            ON CONFLICT(user_id, movie_id) DO UPDATE SET 
+              priority = excluded.priority,
+              notes = excluded.notes,
+              reminder_date = excluded.reminder_date,
+              tags = excluded.tags,
+              updated_at = datetime('now')
+          `).bind(
+            watchlistId,
+            auth.userId,
+            body.movieId,
+            JSON.stringify(body.movieData),
+            body.priority || 0,
+            body.notes || null,
+            body.reminderDate || null,
+            JSON.stringify(body.tags || [])
+          ).run();
+
+          return new Response(
+            JSON.stringify({ success: true, watchlistId }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('Add to watchlist error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to add to watchlist' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: PUT /watchlist/:movieId - Update watchlist item
+      if (path.startsWith('/watchlist/') && method === 'PUT') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const movieId = path.split('/watchlist/')[1];
+        const body = await request.json() as {
+          priority?: number;
+          notes?: string;
+          reminderDate?: string;
+          tags?: string[];
+        };
+
+        try {
+          await env.MOVIE_DB.prepare(`
+            UPDATE watchlist SET 
+              priority = COALESCE(?, priority),
+              notes = COALESCE(?, notes),
+              reminder_date = ?,
+              tags = COALESCE(?, tags),
+              updated_at = datetime('now')
+            WHERE user_id = ? AND movie_id = ?
+          `).bind(
+            body.priority ?? null,
+            body.notes ?? null,
+            body.reminderDate ?? null,
+            body.tags ? JSON.stringify(body.tags) : null,
+            auth.userId,
+            movieId
+          ).run();
+
+          return new Response(
+            JSON.stringify({ success: true }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to update watchlist item' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: DELETE /watchlist/:movieId - Remove from watchlist
+      if (path.startsWith('/watchlist/') && method === 'DELETE') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const movieId = path.split('/watchlist/')[1];
+
+        try {
+          await env.MOVIE_DB.prepare(`
+            DELETE FROM watchlist WHERE user_id = ? AND movie_id = ?
+          `).bind(auth.userId, movieId).run();
+
+          return new Response(
+            JSON.stringify({ success: true }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to remove from watchlist' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /reviews/movie/:movieId - Get reviews for a movie
+      if (path.startsWith('/reviews/movie/') && method === 'GET') {
+        const movieId = path.split('/reviews/movie/')[1];
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        try {
+          const reviews = await env.MOVIE_DB.prepare(`
+            SELECT r.*, u.name as user_name, u.avatar_url as user_avatar_url
+            FROM movie_reviews r
+            JOIN users u ON r.user_id = u.id
+            WHERE r.movie_id = ? AND r.is_public = TRUE
+            ORDER BY r.helpful_count DESC, r.created_at DESC
+            LIMIT 20
+          `).bind(movieId).all();
+
+          // Get user's vote for each review if authenticated
+          let userVotes: Record<string, boolean> = {};
+          if (auth) {
+            const votes = await env.MOVIE_DB.prepare(`
+              SELECT review_id, is_helpful FROM review_votes WHERE user_id = ?
+            `).bind(auth.userId).all();
+            userVotes = Object.fromEntries(
+              votes.results.map((v: any) => [v.review_id, v.is_helpful])
+            );
+          }
+
+          const avgRating = await env.MOVIE_DB.prepare(`
+            SELECT AVG(rating) as avg, COUNT(*) as count FROM movie_reviews WHERE movie_id = ?
+          `).bind(movieId).first<{ avg: number; count: number }>();
+
+          return new Response(
+            JSON.stringify({ 
+              reviews: reviews.results.map((r: any) => ({
+                ...r,
+                movieData: r.movie_data ? JSON.parse(r.movie_data) : null,
+                userVote: userVotes[r.review_id]
+              })),
+              totalCount: avgRating?.count || 0,
+              averageRating: avgRating?.avg ? Math.round(avgRating.avg * 10) / 10 : null
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to get reviews' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /reviews/user - Get current user's reviews
+      if (path === '/reviews/user' && method === 'GET') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const reviews = await env.MOVIE_DB.prepare(`
+            SELECT * FROM movie_reviews WHERE user_id = ? ORDER BY created_at DESC
+          `).bind(auth.userId).all();
+
+          return new Response(
+            JSON.stringify({ 
+              reviews: reviews.results.map((r: any) => ({
+                ...r,
+                movieData: r.movie_data ? JSON.parse(r.movie_data) : null
+              }))
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to get reviews' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: POST /reviews - Create a review
+      if (path === '/reviews' && method === 'POST') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const body = await request.json() as {
+            movieId: string;
+            movieData?: any;
+            rating: number;
+            title?: string;
+            content?: string;
+            containsSpoilers?: boolean;
+            isPublic?: boolean;
+          };
+
+          if (!body.movieId || !body.rating || body.rating < 1 || body.rating > 10) {
+            return new Response(
+              JSON.stringify({ error: 'Valid movieId and rating (1-10) are required' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          const reviewId = `rv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          
+          await env.MOVIE_DB.prepare(`
+            INSERT INTO movie_reviews (review_id, user_id, movie_id, movie_data, rating, title, content, contains_spoilers, is_public, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            ON CONFLICT(user_id, movie_id) DO UPDATE SET 
+              rating = excluded.rating,
+              title = excluded.title,
+              content = excluded.content,
+              contains_spoilers = excluded.contains_spoilers,
+              is_public = excluded.is_public,
+              updated_at = datetime('now')
+          `).bind(
+            reviewId,
+            auth.userId,
+            body.movieId,
+            body.movieData ? JSON.stringify(body.movieData) : null,
+            body.rating,
+            body.title || null,
+            body.content || null,
+            body.containsSpoilers || false,
+            body.isPublic !== false
+          ).run();
+
+          // Also update feedback with the rating
+          await env.MOVIE_DB.prepare(`
+            INSERT INTO movie_feedback (feedback_id, user_id, movie_id, feedback_type, rating, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            ON CONFLICT(user_id, movie_id) DO UPDATE SET 
+              rating = excluded.rating,
+              updated_at = datetime('now')
+          `).bind(
+            `fb-${Date.now()}`,
+            auth.userId,
+            body.movieId,
+            body.rating >= 7 ? 'like' : body.rating >= 5 ? 'not_interested' : 'dislike',
+            body.rating
+          ).run();
+
+          return new Response(
+            JSON.stringify({ success: true, reviewId }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('Create review error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to create review' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: POST /reviews/:reviewId/vote - Vote on a review
+      if (path.match(/^\/reviews\/[^/]+\/vote$/) && method === 'POST') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const reviewId = path.split('/')[2];
+        const body = await request.json() as { isHelpful: boolean };
+
+        try {
+          const voteId = `vote-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          
+          await env.MOVIE_DB.prepare(`
+            INSERT INTO review_votes (vote_id, review_id, user_id, is_helpful, created_at)
+            VALUES (?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(review_id, user_id) DO UPDATE SET is_helpful = excluded.is_helpful
+          `).bind(voteId, reviewId, auth.userId, body.isHelpful).run();
+
+          // Update helpful count
+          const helpfulCount = await env.MOVIE_DB.prepare(`
+            SELECT COUNT(*) as count FROM review_votes WHERE review_id = ? AND is_helpful = TRUE
+          `).bind(reviewId).first<{ count: number }>();
+
+          await env.MOVIE_DB.prepare(`
+            UPDATE movie_reviews SET helpful_count = ? WHERE review_id = ?
+          `).bind(helpfulCount?.count || 0, reviewId).run();
+
+          return new Response(
+            JSON.stringify({ success: true, helpfulCount: helpfulCount?.count || 0 }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to vote on review' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: POST /shared-lists - Create a shared list
+      if (path === '/shared-lists' && method === 'POST') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const body = await request.json() as {
+            title: string;
+            description?: string;
+            movies: any[];
+            isPublic?: boolean;
+            expiresAt?: string;
+          };
+
+          if (!body.title || !body.movies || body.movies.length === 0) {
+            return new Response(
+              JSON.stringify({ error: 'title and movies are required' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          const listId = `list-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const shareCode = Math.random().toString(36).substr(2, 8).toUpperCase();
+          
+          await env.MOVIE_DB.prepare(`
+            INSERT INTO shared_lists (list_id, creator_id, title, description, share_code, movies, is_public, created_at, updated_at, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)
+          `).bind(
+            listId,
+            auth.userId,
+            body.title,
+            body.description || null,
+            shareCode,
+            JSON.stringify(body.movies),
+            body.isPublic !== false,
+            body.expiresAt || null
+          ).run();
+
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              listId, 
+              shareCode,
+              shareUrl: `/shared/${shareCode}`
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('Create shared list error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to create shared list' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /shared-lists/:shareCode - Get a shared list by code (public)
+      if (path.startsWith('/shared-lists/') && method === 'GET') {
+        const shareCode = path.split('/shared-lists/')[1];
+        
+        try {
+          const list = await env.MOVIE_DB.prepare(`
+            SELECT l.*, u.name as creator_name
+            FROM shared_lists l
+            JOIN users u ON l.creator_id = u.id
+            WHERE l.share_code = ? AND l.is_public = TRUE
+            AND (l.expires_at IS NULL OR l.expires_at > datetime('now'))
+          `).bind(shareCode).first();
+
+          if (!list) {
+            return new Response(
+              JSON.stringify({ error: 'List not found or expired' }),
+              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Increment view count
+          await env.MOVIE_DB.prepare(`
+            UPDATE shared_lists SET view_count = view_count + 1 WHERE share_code = ?
+          `).bind(shareCode).run();
+
+          return new Response(
+            JSON.stringify({ 
+              list: {
+                ...(list as any),
+                movies: JSON.parse((list as any).movies)
+              }
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to get shared list' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /my-shared-lists - Get user's shared lists
+      if (path === '/my-shared-lists' && method === 'GET') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const lists = await env.MOVIE_DB.prepare(`
+            SELECT * FROM shared_lists WHERE creator_id = ? ORDER BY created_at DESC
+          `).bind(auth.userId).all();
+
+          return new Response(
+            JSON.stringify({ 
+              lists: lists.results.map((l: any) => ({
+                ...l,
+                movies: JSON.parse(l.movies)
+              }))
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to get shared lists' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // ==================== CONTENT & DISCOVERY ROUTES ====================
+
+      // Route: GET /collections - Get curated collections
+      if (path === '/collections' && method === 'GET') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        try {
+          const type = url.searchParams.get('type'); // 'seasonal', 'genre', 'decade', etc.
+          
+          let query = `
+            SELECT * FROM curated_collections 
+            WHERE is_active = TRUE
+          `;
+          const params: any[] = [];
+          
+          if (type) {
+            query += ` AND collection_type = ?`;
+            params.push(type);
+          }
+          
+          // Filter seasonal collections by current date
+          query += ` AND (valid_from IS NULL OR valid_from <= date('now'))
+                     AND (valid_until IS NULL OR valid_until >= date('now'))`;
+          
+          query += ` ORDER BY display_order ASC`;
+          
+          const stmt = params.length > 0 
+            ? env.MOVIE_DB.prepare(query).bind(...params)
+            : env.MOVIE_DB.prepare(query);
+            
+          const collections = await stmt.all();
+
+          // Get user's saved collections if authenticated
+          let savedIds: Set<string> = new Set();
+          if (auth) {
+            const saved = await env.MOVIE_DB.prepare(`
+              SELECT collection_id FROM user_saved_collections WHERE user_id = ?
+            `).bind(auth.userId).all();
+            savedIds = new Set(saved.results.map((s: any) => s.collection_id));
+          }
+
+          // Determine current season for highlighting
+          const now = new Date();
+          const month = now.getMonth();
+          let currentSeason = '';
+          if (month >= 9 && month <= 10) currentSeason = 'halloween';
+          else if (month === 11 || month === 0) currentSeason = 'christmas';
+          else if (month >= 1 && month <= 2) currentSeason = 'valentine';
+          else if (month >= 5 && month <= 7) currentSeason = 'summer';
+
+          const result = collections.results.map((c: any) => ({
+            ...c,
+            movies: JSON.parse(c.movies || '[]'),
+            criteria: c.criteria ? JSON.parse(c.criteria) : null,
+            isSaved: savedIds.has(c.collection_id),
+            isCurrentSeason: c.season === currentSeason
+          }));
+
+          // Separate into categories
+          const seasonal = result.filter((c: any) => c.collection_type === 'seasonal');
+          const regular = result.filter((c: any) => c.collection_type !== 'seasonal');
+          const saved = result.filter((c: any) => c.isSaved);
+
+          return new Response(
+            JSON.stringify({ collections: regular, seasonal, saved }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('Collections error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to get collections' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /collections/:collectionId - Get a specific collection
+      if (path.match(/^\/collections\/[^/]+$/) && method === 'GET') {
+        const collectionId = path.split('/collections/')[1];
+        
+        try {
+          const collection = await env.MOVIE_DB.prepare(`
+            SELECT * FROM curated_collections WHERE collection_id = ? AND is_active = TRUE
+          `).bind(collectionId).first();
+
+          if (!collection) {
+            return new Response(
+              JSON.stringify({ error: 'Collection not found' }),
+              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // If collection has criteria but no movies, fetch them
+          let movies = JSON.parse((collection as any).movies || '[]');
+          if (movies.length === 0 && (collection as any).criteria) {
+            const criteria = JSON.parse((collection as any).criteria);
+            // Use TMDB to fetch movies based on criteria
+            const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+            const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+            movies = await tmdb.searchMovies(criteria);
+            
+            // Cache the results
+            await env.MOVIE_DB.prepare(`
+              UPDATE curated_collections SET movies = ?, updated_at = datetime('now') WHERE collection_id = ?
+            `).bind(JSON.stringify(movies), collectionId).run();
+          }
+
+          return new Response(
+            JSON.stringify({ 
+              collection: {
+                ...(collection as any),
+                movies,
+                criteria: (collection as any).criteria ? JSON.parse((collection as any).criteria) : null
+              }
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('Get collection error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to get collection' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: POST /collections/:collectionId/save - Save/unsave a collection
+      if (path.match(/^\/collections\/[^/]+\/save$/) && method === 'POST') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        if (!auth) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const collectionId = path.split('/')[2];
+        const body = await request.json() as { save: boolean };
+
+        try {
+          if (body.save) {
+            const saveId = `save-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            await env.MOVIE_DB.prepare(`
+              INSERT OR IGNORE INTO user_saved_collections (save_id, user_id, collection_id, saved_at)
+              VALUES (?, ?, ?, datetime('now'))
+            `).bind(saveId, auth.userId, collectionId).run();
+          } else {
+            await env.MOVIE_DB.prepare(`
+              DELETE FROM user_saved_collections WHERE user_id = ? AND collection_id = ?
+            `).bind(auth.userId, collectionId).run();
+          }
+
+          return new Response(
+            JSON.stringify({ success: true, saved: body.save }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to update saved collection' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /similar/:movieId - Get similar movies
+      if (path.startsWith('/similar/') && method === 'GET') {
+        const movieId = path.split('/similar/')[1];
+        
+        try {
+          // Check cache first
+          const cached = await env.MOVIE_DB.prepare(`
+            SELECT * FROM similar_movies_cache 
+            WHERE source_movie_id = ? AND expires_at > datetime('now')
+          `).bind(movieId).first();
+
+          if (cached) {
+            return new Response(
+              JSON.stringify({ 
+                sourceMovieId: movieId,
+                similarMovies: JSON.parse((cached as any).similar_movies),
+                cached: true
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Fetch from TMDB
+          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+          
+          // Get both similar and recommended movies for better results
+          const [similar, recommendations] = await Promise.all([
+            tmdb.getSimilarMovies(movieId, 10),
+            tmdb.getRecommendations(movieId, 10)
+          ]);
+
+          // Merge and deduplicate
+          const allMovies = [...similar, ...recommendations];
+          const uniqueMovies = Array.from(
+            new Map(allMovies.map(m => [m.id, m])).values()
+          ).slice(0, 15);
+
+          // Cache results
+          const cacheId = `cache-${Date.now()}`;
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 7); // Cache for 7 days
+
+          await env.MOVIE_DB.prepare(`
+            INSERT INTO similar_movies_cache (cache_id, source_movie_id, similar_movies, created_at, expires_at)
+            VALUES (?, ?, ?, datetime('now'), ?)
+          `).bind(cacheId, movieId, JSON.stringify(uniqueMovies), expiresAt.toISOString()).run();
+
+          return new Response(
+            JSON.stringify({ 
+              sourceMovieId: movieId,
+              similarMovies: uniqueMovies,
+              cached: false
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('Similar movies error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to get similar movies' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /trending - Get trending movies
+      if (path === '/trending' && method === 'GET') {
+        try {
+          const timeWindow = (url.searchParams.get('timeWindow') || 'week') as 'day' | 'week';
+          const limit = parseInt(url.searchParams.get('limit') || '20');
+
+          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+          
+          const movies = await tmdb.getTrending(timeWindow, limit);
+
+          return new Response(
+            JSON.stringify({ movies, timeWindow }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to get trending movies' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /person/:personId - Get person details (actor/director)
+      if (path.startsWith('/person/') && method === 'GET') {
+        const personId = parseInt(path.split('/person/')[1]);
+        
+        try {
+          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+          
+          const person = await tmdb.getPersonDetails(personId);
+
+          if (!person) {
+            return new Response(
+              JSON.stringify({ error: 'Person not found' }),
+              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Get their movies
+          const isDirector = person.knownForDepartment === 'Directing';
+          const movies = isDirector 
+            ? await tmdb.searchByDirector(person.name, { limit: 20 })
+            : await tmdb.searchByActor(person.name, { limit: 20 });
+
+          return new Response(
+            JSON.stringify({ person, movies }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to get person details' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /search/person - Search for actors/directors
+      if (path === '/search/person' && method === 'GET') {
+        const query = url.searchParams.get('q');
+        
+        if (!query) {
+          return new Response(
+            JSON.stringify({ error: 'Query parameter q is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+          
+          const results = await tmdb.searchPerson(query);
+
+          return new Response(
+            JSON.stringify({ results }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to search person' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /watch-providers/:movieId - Get watch providers
+      if (path.startsWith('/watch-providers/') && method === 'GET') {
+        const movieId = path.split('/watch-providers/')[1];
+        const region = url.searchParams.get('region') || 'US';
+        
+        try {
+          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+          
+          const providers = await tmdb.getWatchProviders(movieId, region);
+
+          return new Response(
+            JSON.stringify({ movieId, region, providers }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ error: 'Failed to get watch providers' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /discovery - Get personalized discovery page
+      if (path === '/discovery' && method === 'GET') {
+        const auth = await authenticateRequest(request, jwtSecret);
+        
+        try {
+          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+
+          const sections: any[] = [];
+
+          // Trending section
+          const trending = await tmdb.getTrending('week', 10);
+          sections.push({
+            id: 'trending',
+            title: 'Trending This Week',
+            type: 'trending',
+            items: trending
+          });
+
+          // Get active seasonal collections
+          const seasonal = await env.MOVIE_DB.prepare(`
+            SELECT * FROM curated_collections 
+            WHERE collection_type = 'seasonal' AND is_active = TRUE
+            AND (valid_from IS NULL OR valid_from <= date('now'))
+            AND (valid_until IS NULL OR valid_until >= date('now'))
+            ORDER BY display_order ASC
+            LIMIT 2
+          `).all();
+
+          for (const collection of seasonal.results) {
+            const movies = JSON.parse((collection as any).movies || '[]');
+            if (movies.length > 0) {
+              sections.push({
+                id: (collection as any).collection_id,
+                title: (collection as any).title,
+                subtitle: (collection as any).description,
+                type: 'collection',
+                items: movies.slice(0, 10)
+              });
+            }
+          }
+
+          // Personalized picks if authenticated
+          let personalizedPicks: any[] = [];
+          if (auth) {
+            const profile = await env.MOVIE_DB.prepare(`
+              SELECT * FROM user_taste_profiles WHERE user_id = ?
+            `).bind(auth.userId).first();
+
+            if (profile && (profile as any).profile_strength > 0.3) {
+              const genreScores = JSON.parse((profile as any).genre_scores || '{}');
+              const topGenres = Object.entries(genreScores)
+                .sort((a, b) => (b[1] as number) - (a[1] as number))
+                .slice(0, 2)
+                .map(([genre]) => genre);
+
+              if (topGenres.length > 0) {
+                const personalizedMovies = await tmdb.searchMovies({
+                  genres: topGenres,
+                  minRating: (profile as any).avg_rating_preference || 7.0,
+                  limit: 10
+                });
+
+                sections.push({
+                  id: 'personalized',
+                  title: 'Picked For You',
+                  subtitle: `Based on your love for ${topGenres.join(' and ')}`,
+                  type: 'personalized',
+                  items: personalizedMovies
+                });
+              }
+            }
+          }
+
+          // Genre-based collections
+          const genreCollections = await env.MOVIE_DB.prepare(`
+            SELECT * FROM curated_collections 
+            WHERE collection_type IN ('genre', 'decade') AND is_active = TRUE
+            ORDER BY display_order ASC
+            LIMIT 3
+          `).all();
+
+          for (const collection of genreCollections.results) {
+            let movies = JSON.parse((collection as any).movies || '[]');
+            
+            // Fetch movies if empty
+            if (movies.length === 0 && (collection as any).criteria) {
+              const criteria = JSON.parse((collection as any).criteria);
+              movies = await tmdb.searchMovies({ ...criteria, limit: 10 });
+            }
+
+            if (movies.length > 0) {
+              sections.push({
+                id: (collection as any).collection_id,
+                title: (collection as any).title,
+                subtitle: (collection as any).description,
+                type: 'collection',
+                items: movies.slice(0, 10)
+              });
+            }
+          }
+
+          return new Response(
+            JSON.stringify({ sections, personalizedPicks }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('Discovery error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to load discovery page' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
       // Health check
       if (path === '/health' && method === 'GET') {
         return new Response(
@@ -1392,3 +2625,110 @@ Always respond with ONLY the JSON object, nothing else.`
     }
   },
 };
+
+// Helper function to update user's taste profile based on feedback
+async function updateTasteProfile(
+  env: Env, 
+  userId: string, 
+  movieId: string, 
+  feedbackType: string,
+  movieData?: any
+): Promise<void> {
+  try {
+    // Get current profile or create new one
+    let profile = await env.MOVIE_DB.prepare(`
+      SELECT * FROM user_taste_profiles WHERE user_id = ?
+    `).bind(userId).first();
+
+    const genreScores: Record<string, number> = profile 
+      ? JSON.parse((profile as any).genre_scores || '{}') 
+      : {};
+    const actorScores: Record<string, number> = profile 
+      ? JSON.parse((profile as any).actor_scores || '{}') 
+      : {};
+    const directorScores: Record<string, number> = profile 
+      ? JSON.parse((profile as any).director_scores || '{}') 
+      : {};
+    const decadeScores: Record<string, number> = profile 
+      ? JSON.parse((profile as any).decade_scores || '{}') 
+      : {};
+
+    let totalCount = profile ? (profile as any).total_feedback_count || 0 : 0;
+    totalCount++;
+
+    // Calculate score adjustment based on feedback type
+    const adjustments: Record<string, number> = {
+      'love': 0.15,
+      'like': 0.1,
+      'dislike': -0.1,
+      'not_interested': -0.05
+    };
+    const adjustment = adjustments[feedbackType] || 0;
+
+    // Update scores based on movie data if available
+    if (movieData) {
+      // Update genre scores
+      if (movieData.genres) {
+        for (const genre of movieData.genres) {
+          genreScores[genre] = Math.max(0, Math.min(1, (genreScores[genre] || 0.5) + adjustment));
+        }
+      }
+
+      // Update actor scores
+      if (movieData.actors) {
+        for (const actor of movieData.actors.slice(0, 3)) {
+          actorScores[actor] = Math.max(0, Math.min(1, (actorScores[actor] || 0.5) + adjustment));
+        }
+      }
+
+      // Update director score
+      if (movieData.director) {
+        directorScores[movieData.director] = Math.max(0, Math.min(1, 
+          (directorScores[movieData.director] || 0.5) + adjustment));
+      }
+
+      // Update decade score
+      if (movieData.releaseDate) {
+        const year = parseInt(movieData.releaseDate.substring(0, 4));
+        const decade = `${Math.floor(year / 10) * 10}s`;
+        decadeScores[decade] = Math.max(0, Math.min(1, (decadeScores[decade] || 0.5) + adjustment));
+      }
+    }
+
+    // Calculate profile strength (0-1 based on amount of data)
+    const profileStrength = Math.min(1, totalCount / 50); // Full strength at 50 ratings
+
+    // Calculate average rating preference based on feedback history
+    const avgQuery = await env.MOVIE_DB.prepare(`
+      SELECT AVG(rating) as avg FROM movie_feedback WHERE user_id = ? AND rating IS NOT NULL
+    `).bind(userId).first<{ avg: number }>();
+    const avgRatingPreference = avgQuery?.avg || 7.0;
+
+    // Upsert profile
+    await env.MOVIE_DB.prepare(`
+      INSERT INTO user_taste_profiles (user_id, genre_scores, actor_scores, director_scores, decade_scores, 
+        avg_rating_preference, total_feedback_count, profile_strength, last_computed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(user_id) DO UPDATE SET
+        genre_scores = excluded.genre_scores,
+        actor_scores = excluded.actor_scores,
+        director_scores = excluded.director_scores,
+        decade_scores = excluded.decade_scores,
+        avg_rating_preference = excluded.avg_rating_preference,
+        total_feedback_count = excluded.total_feedback_count,
+        profile_strength = excluded.profile_strength,
+        last_computed_at = datetime('now')
+    `).bind(
+      userId,
+      JSON.stringify(genreScores),
+      JSON.stringify(actorScores),
+      JSON.stringify(directorScores),
+      JSON.stringify(decadeScores),
+      avgRatingPreference,
+      totalCount,
+      profileStrength
+    ).run();
+  } catch (error) {
+    console.error('Error updating taste profile:', error);
+  }
+}

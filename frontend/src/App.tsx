@@ -6,6 +6,9 @@ import SignupPage from './pages/SignupPage'
 import ProfilePage from './pages/ProfilePage'
 import ChatPage from './pages/ChatPage'
 import HomePage from './pages/HomePage'
+import WatchlistPage from './pages/WatchlistPage'
+import DiscoveryPage from './pages/DiscoveryPage'
+import CollectionsPage from './pages/CollectionsPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
 function App() {
@@ -35,6 +38,9 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/discover" element={<DiscoveryPage />} />
+          <Route path="/watchlist" element={<WatchlistPage />} />
+          <Route path="/collections" element={<CollectionsPage />} />
         </Route>
       </Route>
 
