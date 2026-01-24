@@ -78,17 +78,39 @@ build_frontend() {
 
 # Deploy frontend to server
 deploy_frontend() {
+    # Build frontend first
+    build_frontend
+    
+    # Check if local deployment (running on the server itself)
+    if [ "$LOCAL_DEPLOY" = "true" ] || [ "$REMOTE_HOST" = "localhost" ]; then
+        log_info "Deploying frontend locally to $REMOTE_PATH..."
+        
+        # Create directory if it doesn't exist
+        mkdir -p "$REMOTE_PATH"
+        
+        # Copy build files
+        log_info "Copying files..."
+        cp -r frontend/dist/* "$REMOTE_PATH/"
+        
+        # Reload nginx if it's running
+        if systemctl is-active --quiet nginx; then
+            log_info "Reloading Nginx..."
+            systemctl reload nginx
+        fi
+        
+        log_info "Frontend deployed successfully to $REMOTE_PATH!"
+        return
+    fi
+    
     log_info "Deploying frontend to $REMOTE_HOST..."
     
     # Check if remote host is configured
     if [ "$REMOTE_HOST" = "your-server.com" ]; then
         log_error "Please configure REMOTE_HOST environment variable"
         log_info "Example: REMOTE_HOST=server.example.com ./deploy.sh frontend"
+        log_info "Or for local deployment: LOCAL_DEPLOY=true ./deploy.sh frontend"
         exit 1
     fi
-    
-    # Build frontend first
-    build_frontend
     
     # Create remote directory if it doesn't exist
     ssh "$REMOTE_USER@$REMOTE_HOST" "mkdir -p $REMOTE_PATH"
@@ -146,9 +168,14 @@ usage() {
     echo "  setup      Initial server setup (Nginx, directories)"
     echo ""
     echo "Environment variables:"
+    echo "  LOCAL_DEPLOY Set to 'true' for local deployment (no SSH)"
     echo "  REMOTE_USER  SSH user for server (default: user)"
-    echo "  REMOTE_HOST  Server hostname (default: your-server.com)"
+    echo "  REMOTE_HOST  Server hostname (default: your-server.com, use 'localhost' for local)"
     echo "  REMOTE_PATH  Deployment path (default: /var/www/movie-recommendation)"
+    echo ""
+    echo "Examples:"
+    echo "  ./deploy.sh                    # Deploy backend only"
+    echo "  LOCAL_DEPLOY=true ./deploy.sh all  # Deploy both locally"
 }
 
 # Main

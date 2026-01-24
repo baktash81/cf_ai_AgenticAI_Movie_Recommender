@@ -15,6 +15,7 @@ export interface MovieCriteria {
   
   // Content filters
   genres?: string[]; // e.g., ["Action", "Drama", "Comedy"]
+  excludeGenres?: string[]; // Genres to exclude (from user preferences)
   actors?: string[]; // Actor names
   directors?: string[]; // Director names
   keywords?: string[]; // Search keywords
@@ -27,6 +28,9 @@ export interface MovieCriteria {
   language?: string; // ISO 639-1 code (e.g., "en")
   region?: string; // ISO 3166-1 code (e.g., "US")
   
+  // Content safety
+  includeAdult?: boolean; // Whether to include adult content (default: false)
+  
   // Pagination
   page?: number;
   limit?: number; // Results per page (max 20 for TMDB)
@@ -34,6 +38,15 @@ export interface MovieCriteria {
   // Sorting
   sortBy?: 'popularity' | 'rating' | 'release_date' | 'revenue' | 'title';
   sortOrder?: 'asc' | 'desc';
+  
+  // Preference context (for ranking/boosting)
+  _preferenceContext?: {
+    specificity: 'specific' | 'vague';
+    hasPreferences: boolean;
+    favoriteGenres: string[];
+    favoriteActors: string[];
+    preferenceStyle: string;
+  };
 }
 
 export interface MovieResult {

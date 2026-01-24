@@ -121,6 +121,14 @@ export class TMDBAPI {
       }
     }
     
+    // Exclude genres (for preference-based filtering)
+    if (criteria.excludeGenres && criteria.excludeGenres.length > 0) {
+      const excludeGenreIds = this.mapGenreNamesToIds(criteria.excludeGenres);
+      if (excludeGenreIds.length > 0) {
+        url.searchParams.append('without_genres', excludeGenreIds.join(','));
+      }
+    }
+    
     // Rating
     if (criteria.minRating !== undefined) {
       url.searchParams.append('vote_average.gte', criteria.minRating.toString());
@@ -146,7 +154,7 @@ export class TMDBAPI {
     url.searchParams.append('page', (criteria.page || 1).toString());
     
     // Adult content
-    url.searchParams.append('include_adult', 'false');
+    url.searchParams.append('include_adult', criteria.includeAdult === true ? 'true' : 'false');
     
     return url.toString();
   }

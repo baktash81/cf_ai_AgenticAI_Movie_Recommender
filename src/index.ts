@@ -528,152 +528,6 @@ export default {
         );
       }
 
-      // Route: POST /watchlist - Add movie to watchlist (protected)
-      if (path === '/watchlist' && method === 'POST') {
-        const auth = await authenticateRequest(request, jwtSecret);
-        const body = await request.json() as {
-          userId?: string;
-          movieId: string;
-          priority?: number;
-        };
-        
-        const userId = auth?.userId || body.userId;
-        
-        if (!userId || !body.movieId) {
-          return new Response(
-            JSON.stringify({ error: 'Authentication required and movieId is required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        try {
-          // Ensure user preferences record exists
-          await env.MOVIE_DB.prepare(`
-            INSERT OR IGNORE INTO user_movie_preferences (user_id, preferences, updated_at)
-            VALUES (?, ?, datetime('now'))
-          `).bind(userId, JSON.stringify({})).run();
-
-          await env.MOVIE_DB.prepare(`
-            INSERT INTO user_watchlist (watchlist_id, user_id, movie_id, priority)
-            VALUES (?, ?, ?, ?)
-          `).bind(
-            `watchlist-${Date.now()}`,
-            userId,
-            body.movieId,
-            body.priority || 0
-          ).run();
-          
-          return new Response(
-            JSON.stringify({ success: true, message: 'Added to watchlist' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        } catch (error) {
-          return new Response(
-            JSON.stringify({ error: 'Failed to add to watchlist', details: error instanceof Error ? error.message : 'Unknown error' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-
-      // Route: GET /watchlist - Get current user watchlist (protected)
-      if (path === '/watchlist' && method === 'GET') {
-        const auth = await authenticateRequest(request, jwtSecret);
-        
-        if (!auth) {
-          return new Response(
-            JSON.stringify({ error: 'Unauthorized' }),
-            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        try {
-          const results = await env.MOVIE_DB.prepare(`
-            SELECT movie_id, added_at, priority 
-            FROM user_watchlist 
-            WHERE user_id = ?
-            ORDER BY priority DESC, added_at DESC
-          `).bind(auth.userId).all<{ movie_id: string; added_at: string; priority: number }>();
-          
-          return new Response(
-            JSON.stringify({ watchlist: results.results || [] }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        } catch (error) {
-          return new Response(
-            JSON.stringify({ error: 'Failed to get watchlist' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-
-      // Route: GET /watchlist/:userId - Get user watchlist (legacy)
-      if (path.startsWith('/watchlist/') && method === 'GET') {
-        const userId = path.split('/watchlist/')[1];
-        
-        if (!userId) {
-          return new Response(
-            JSON.stringify({ error: 'userId is required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        try {
-          const results = await env.MOVIE_DB.prepare(`
-            SELECT movie_id, added_at, priority 
-            FROM user_watchlist 
-            WHERE user_id = ?
-            ORDER BY priority DESC, added_at DESC
-          `).bind(userId).all<{ movie_id: string; added_at: string; priority: number }>();
-          
-          return new Response(
-            JSON.stringify({ watchlist: results.results || [] }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        } catch (error) {
-          return new Response(
-            JSON.stringify({ error: 'Failed to get watchlist' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-
-      // Route: DELETE /watchlist/:movieId - Remove from watchlist (protected)
-      if (path.startsWith('/watchlist/') && method === 'DELETE') {
-        const auth = await authenticateRequest(request, jwtSecret);
-        
-        if (!auth) {
-          return new Response(
-            JSON.stringify({ error: 'Unauthorized' }),
-            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        const movieId = path.split('/watchlist/')[1];
-        
-        if (!movieId) {
-          return new Response(
-            JSON.stringify({ error: 'movieId is required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        try {
-          await env.MOVIE_DB.prepare(`
-            DELETE FROM user_watchlist WHERE user_id = ? AND movie_id = ?
-          `).bind(auth.userId, movieId).run();
-          
-          return new Response(
-            JSON.stringify({ success: true, message: 'Removed from watchlist' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        } catch (error) {
-          return new Response(
-            JSON.stringify({ error: 'Failed to remove from watchlist' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-
       // ==================== CHAT HISTORY ROUTES ====================
 
       // Route: GET /conversations - List user's conversations (protected)
@@ -937,6 +791,16 @@ export default {
             }
           }
 
+          // Fetch user preferences for intelligent merging
+          let userPreferences: any = null;
+          try {
+            const prefAgentId = env.MOVIE_PREFERENCE_ANALYSIS_AGENT.idFromName(auth.userId);
+            const prefAgent = env.MOVIE_PREFERENCE_ANALYSIS_AGENT.get(prefAgentId);
+            userPreferences = await prefAgent.getUserPreferences(auth.userId);
+          } catch (prefError) {
+            console.log('Could not fetch user preferences:', prefError);
+          }
+
           // Use AI to understand user intent and generate response
           const aiResult = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
             messages: [
@@ -953,6 +817,7 @@ CONTEXT: ${previousMovies && previousMovies.length > 0
 When the user asks for NEW movie recommendations (not filtering previous results), respond with:
 {
   "type": "recommendation",
+  "specificity": "specific" or "vague",
   "criteria": { 
     "genres": ["genre1", "genre2"],
     "actors": ["actor name"],
@@ -965,6 +830,11 @@ When the user asks for NEW movie recommendations (not filtering previous results
   },
   "message": "I'll find some great movies for you!"
 }
+
+SPECIFICITY RULES (VERY IMPORTANT):
+- "specific": User explicitly mentions genres, actors, directors, years, or specific themes (e.g., "horror movies", "Tom Hanks movies", "sci-fi from the 80s")
+- "vague": User asks for general recommendations without specific criteria (e.g., "recommend me something", "what should I watch?", "suggest some movies", "I'm bored")
+- When in doubt, use "specific" to respect the user's explicit request
 
 YEAR/DATE RULES (VERY IMPORTANT):
 - For a SINGLE YEAR like "movies from 2025" or "2025 movies" → use "year": 2025 (as a number, not string)
@@ -1132,17 +1002,24 @@ Always respond with ONLY the JSON object, nothing else.`
 
               // Normalize genre names (e.g., "sci-fi" -> "Science Fiction")
               if (parsedResponse.criteria.genres) {
-                parsedResponse.criteria.genres = parsedResponse.criteria.genres.map(genre => {
+                parsedResponse.criteria.genres = parsedResponse.criteria.genres.map((genre: string) => {
                   const normalized = genre.toLowerCase().replace(/[^a-z0-9]/g, '');
                   if (normalized.includes('scifi') || normalized.includes('sciencefiction') || normalized === 'sf') {
                     return 'Science Fiction';
                   }
                   // Capitalize first letter of each word
-                  return genre.split(' ').map(word => 
+                  return genre.split(' ').map((word: string) => 
                     word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
                   ).join(' ');
                 });
               }
+
+              // Apply user preferences intelligently based on specificity
+              const mergedCriteria = mergePreferencesWithCriteria(
+                parsedResponse.criteria,
+                userPreferences,
+                parsedResponse.specificity || 'specific' // Default to 'specific' to respect user's request
+              );
 
               // Trigger movie search
               const agentId = env.MOVIE_RECOMMENDATION_AGENT.idFromName(auth.userId);
@@ -1150,7 +1027,7 @@ Always respond with ONLY the JSON object, nothing else.`
               
               const searchResult = await agent.recommendMovies({
                 userId: auth.userId,
-                criteria: parsedResponse.criteria,
+                criteria: mergedCriteria,
                 isStructured: true,
               });
 
@@ -1214,18 +1091,19 @@ Always respond with ONLY the JSON object, nothing else.`
                     message: responseText,
                   };
                 } else {
-                  // No clear filter, start new search
+                  // No clear filter, start new search with user preferences
+                  const fallbackCriteria = mergePreferencesWithCriteria(
+                    { genres: [], actors: [], directors: [], minRating: 6.0 },
+                    userPreferences,
+                    'vague' // Fallback is a vague query
+                  );
+                  
                   const agentId = env.MOVIE_RECOMMENDATION_AGENT.idFromName(auth.userId);
                   const agent = env.MOVIE_RECOMMENDATION_AGENT.get(agentId);
                   
                   const searchResult = await agent.recommendMovies({
                     userId: auth.userId,
-                    criteria: {
-                      genres: [],
-                      actors: [],
-                      directors: [],
-                      minRating: 6.0,
-                    },
+                    criteria: fallbackCriteria,
                     isStructured: true,
                   });
 
@@ -1236,18 +1114,19 @@ Always respond with ONLY the JSON object, nothing else.`
                   };
                 }
               } else {
-                // No previous movies, start new search
+                // No previous movies, start new search with user preferences
+                const fallbackCriteria = mergePreferencesWithCriteria(
+                  { genres: [], actors: [], directors: [], minRating: 6.0 },
+                  userPreferences,
+                  'vague' // Fallback is a vague query
+                );
+                
                 const agentId = env.MOVIE_RECOMMENDATION_AGENT.idFromName(auth.userId);
                 const agent = env.MOVIE_RECOMMENDATION_AGENT.get(agentId);
                 
                 const searchResult = await agent.recommendMovies({
                   userId: auth.userId,
-                  criteria: {
-                    genres: [],
-                    actors: [],
-                    directors: [],
-                    minRating: 6.0,
-                  },
+                  criteria: fallbackCriteria,
                   isStructured: true,
                 });
 
@@ -2635,6 +2514,95 @@ Always respond with ONLY the JSON object, nothing else.`
     }
   },
 };
+
+// Helper function to intelligently merge user preferences with search criteria
+// Based on specificity: 
+// - "specific": User made explicit request → use their criteria, only apply hard filters from preferences
+// - "vague": User asked for general recommendations → apply preferences to fill in gaps
+function mergePreferencesWithCriteria(
+  criteria: any,
+  preferences: any,
+  specificity: 'specific' | 'vague'
+): any {
+  // If no preferences, return criteria as-is
+  if (!preferences) {
+    return criteria;
+  }
+
+  const merged = { ...criteria };
+
+  if (specificity === 'vague') {
+    // VAGUE QUERY: Apply preferences as primary filters/fillers
+    
+    // Fill in genres if user didn't specify any
+    if ((!merged.genres || merged.genres.length === 0) && preferences.favoriteGenres?.length > 0) {
+      merged.genres = preferences.favoriteGenres;
+    }
+
+    // Fill in actors if user didn't specify any
+    if ((!merged.actors || merged.actors.length === 0) && preferences.favoriteActors?.length > 0) {
+      merged.actors = preferences.favoriteActors.slice(0, 3); // Limit to top 3
+    }
+
+    // Fill in directors if user didn't specify any
+    if ((!merged.directors || merged.directors.length === 0) && preferences.favoriteDirectors?.length > 0) {
+      merged.directors = preferences.favoriteDirectors.slice(0, 2); // Limit to top 2
+    }
+
+    // Apply minimum rating from preferences if not specified
+    if (!merged.minRating && preferences.minRating > 0) {
+      merged.minRating = preferences.minRating;
+    }
+
+    // Apply preferred decades if not specified
+    if (!merged.releaseDateFrom && !merged.year && preferences.preferredDecades?.length > 0) {
+      // Don't restrict by decade for vague queries - just ensure good variety
+    }
+
+  } else {
+    // SPECIFIC QUERY: User made explicit request - respect it!
+    // Only apply non-restrictive preferences:
+    
+    // 1. Apply minimum rating as a floor (only if user didn't specify lower)
+    if (preferences.minRating > 0 && (!merged.minRating || merged.minRating < preferences.minRating)) {
+      // Only apply if user hasn't explicitly asked for lower-rated movies
+      // Check if the query was specifically about low-rated movies
+      merged.minRating = Math.max(merged.minRating || 0, Math.min(preferences.minRating, 6.0));
+    }
+
+    // 2. Exclude disliked genres ONLY if user didn't specifically ask for them
+    // This is the key fix: if user asks for "horror" but has "horror" in disliked, IGNORE the dislike
+    if (preferences.dislikedGenres?.length > 0) {
+      const userRequestedGenres = new Set((merged.genres || []).map((g: string) => g.toLowerCase()));
+      
+      // Only add excludeGenres for disliked genres that user DIDN'T explicitly request
+      const genresToExclude = preferences.dislikedGenres.filter(
+        (disliked: string) => !userRequestedGenres.has(disliked.toLowerCase())
+      );
+      
+      if (genresToExclude.length > 0 && (!merged.genres || merged.genres.length === 0)) {
+        // Only apply exclusions if user didn't request specific genres
+        merged.excludeGenres = genresToExclude;
+      }
+    }
+  }
+
+  // ALWAYS apply adult content filter (safety)
+  if (preferences.avoidAdultContent) {
+    merged.includeAdult = false;
+  }
+
+  // Add preference metadata for potential ranking/boosting in results
+  merged._preferenceContext = {
+    specificity,
+    hasPreferences: true,
+    favoriteGenres: preferences.favoriteGenres || [],
+    favoriteActors: preferences.favoriteActors || [],
+    preferenceStyle: preferences.preferenceStyle || 'balanced'
+  };
+
+  return merged;
+}
 
 // Helper function to update user's taste profile based on feedback
 async function updateTasteProfile(

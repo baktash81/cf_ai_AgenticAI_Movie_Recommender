@@ -27,6 +27,7 @@ export default function MovieCard({ movie, showFeedback = true, compact = false,
   const [showMenu, setShowMenu] = useState(false);
   const [watchProviders, setWatchProviders] = useState<WatchProviders | null>(null);
   const [isLoadingProviders, setIsLoadingProviders] = useState(false);
+  const [providersLoaded, setProvidersLoaded] = useState(false);
   
   const isInWatchlist = watchlist.some(item => item.movie_id === movie.id);
   const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : null;
@@ -55,7 +56,7 @@ export default function MovieCard({ movie, showFeedback = true, compact = false,
   }, [movie, isSubmittingFeedback, onFeedbackChange]);
 
   const loadWatchProviders = async () => {
-    if (watchProviders || isLoadingProviders) return;
+    if (providersLoaded || isLoadingProviders) return;
     setIsLoadingProviders(true);
     try {
       const result = await watchProvidersApi.get(movie.id);
@@ -64,6 +65,7 @@ export default function MovieCard({ movie, showFeedback = true, compact = false,
       console.error('Failed to load watch providers:', error);
     } finally {
       setIsLoadingProviders(false);
+      setProvidersLoaded(true);
     }
   };
 
@@ -266,30 +268,112 @@ export default function MovieCard({ movie, showFeedback = true, compact = false,
             </div>
           )}
 
+          {/* Watch Providers Loading */}
+          {isLoadingProviders && (
+            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Loading streaming options...</p>
+            </div>
+          )}
+
           {/* Watch Providers (if loaded) */}
-          {watchProviders && (watchProviders.flatrate.length > 0 || watchProviders.rent.length > 0) && (
+          {providersLoaded && !isLoadingProviders && (
             <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Where to Watch</p>
-              <div className="flex flex-wrap gap-2">
-                {watchProviders.flatrate.slice(0, 4).map((provider) => (
-                  <div key={provider.providerId} className="relative group/provider">
-                    {provider.logoPath ? (
-                      <img 
-                        src={provider.logoPath} 
-                        alt={provider.providerName}
-                        className="w-8 h-8 rounded-lg"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                        <Play className="h-4 w-4 text-gray-400" />
+              {watchProviders && (watchProviders.flatrate.length > 0 || watchProviders.rent.length > 0 || watchProviders.buy.length > 0) ? (
+                <div className="space-y-2">
+                  {/* Streaming (flatrate) */}
+                  {watchProviders.flatrate.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Stream</p>
+                      <div className="flex flex-wrap gap-2">
+                        {watchProviders.flatrate.slice(0, 4).map((provider) => (
+                          <div key={provider.providerId} className="relative group/provider">
+                            {provider.logoPath ? (
+                              <img 
+                                src={provider.logoPath} 
+                                alt={provider.providerName}
+                                className="w-8 h-8 rounded-lg"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                                <Play className="h-4 w-4 text-gray-400" />
+                              </div>
+                            )}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover/provider:opacity-100 whitespace-nowrap pointer-events-none z-10">
+                              {provider.providerName}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    )}
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover/provider:opacity-100 whitespace-nowrap pointer-events-none">
-                      {provider.providerName}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  )}
+                  {/* Rent */}
+                  {watchProviders.rent.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Rent</p>
+                      <div className="flex flex-wrap gap-2">
+                        {watchProviders.rent.slice(0, 4).map((provider) => (
+                          <div key={provider.providerId} className="relative group/provider">
+                            {provider.logoPath ? (
+                              <img 
+                                src={provider.logoPath} 
+                                alt={provider.providerName}
+                                className="w-8 h-8 rounded-lg"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                                <Play className="h-4 w-4 text-gray-400" />
+                              </div>
+                            )}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover/provider:opacity-100 whitespace-nowrap pointer-events-none z-10">
+                              {provider.providerName}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Buy */}
+                  {watchProviders.buy.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Buy</p>
+                      <div className="flex flex-wrap gap-2">
+                        {watchProviders.buy.slice(0, 4).map((provider) => (
+                          <div key={provider.providerId} className="relative group/provider">
+                            {provider.logoPath ? (
+                              <img 
+                                src={provider.logoPath} 
+                                alt={provider.providerName}
+                                className="w-8 h-8 rounded-lg"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                                <Play className="h-4 w-4 text-gray-400" />
+                              </div>
+                            )}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover/provider:opacity-100 whitespace-nowrap pointer-events-none z-10">
+                              {provider.providerName}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* TMDB Attribution Link */}
+                  {watchProviders.link && (
+                    <a 
+                      href={watchProviders.link} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                    >
+                      View all options on TMDB →
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">No streaming options found in your region</p>
+              )}
             </div>
           )}
         </div>
