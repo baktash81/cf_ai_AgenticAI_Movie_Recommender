@@ -115,13 +115,13 @@ export default function MovieCard({ movie, showFeedback = true, compact = false,
           />
           
           {/* Rating badge */}
-          <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/70 text-white px-2 py-1 rounded-lg text-sm font-medium">
+          <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/70 text-white px-2 py-1 rounded-lg text-sm font-medium z-10">
             <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
             {movie.rating.toFixed(1)}
           </div>
 
           {/* Action buttons (top right) */}
-          <div className="absolute top-2 right-2 flex flex-col gap-1">
+          <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
             {/* Watchlist button */}
             <button
               onClick={handleWatchlistToggle}
@@ -181,7 +181,7 @@ export default function MovieCard({ movie, showFeedback = true, compact = false,
           </div>
 
           {/* Hover overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
             <div className="absolute bottom-0 left-0 right-0 p-4">
               <p className="text-white text-sm line-clamp-3">
                 {movie.overview || 'No description available.'}
