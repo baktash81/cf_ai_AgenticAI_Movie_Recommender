@@ -96,15 +96,21 @@ export class TMDBAPI {
     const url = new URL(`${this.baseUrl}/discover/movie`);
     url.searchParams.append('api_key', this.apiKey);
     
-    // Date range
-    if (criteria.releaseDateFrom) {
-      url.searchParams.append('primary_release_date.gte', criteria.releaseDateFrom);
-    }
-    if (criteria.releaseDateTo) {
-      url.searchParams.append('primary_release_date.lte', criteria.releaseDateTo);
-    }
+    // Date range - normalize dates to YYYY-MM-DD format
+    // If year is specified, use primary_release_year (most reliable for single year)
     if (criteria.year) {
       url.searchParams.append('primary_release_year', criteria.year.toString());
+    } else {
+      // Handle releaseDateFrom - normalize to full date format
+      if (criteria.releaseDateFrom) {
+        const normalizedFrom = this.normalizeDateString(criteria.releaseDateFrom, 'start');
+        url.searchParams.append('primary_release_date.gte', normalizedFrom);
+      }
+      // Handle releaseDateTo - normalize to full date format
+      if (criteria.releaseDateTo) {
+        const normalizedTo = this.normalizeDateString(criteria.releaseDateTo, 'end');
+        url.searchParams.append('primary_release_date.lte', normalizedTo);
+      }
     }
     
     // Genres (TMDB uses genre IDs, we'll need to map names to IDs)
@@ -143,6 +149,55 @@ export class TMDBAPI {
     url.searchParams.append('include_adult', 'false');
     
     return url.toString();
+  }
+
+  /**
+   * Normalize date string to YYYY-MM-DD format
+   * Handles: "2025", "2025-01", "2025-01-15", etc.
+   */
+  private normalizeDateString(dateStr: string, type: 'start' | 'end'): string {
+    const trimmed = dateStr.trim();
+    
+    // Already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    
+    // Just a year: "2025"
+    if (/^\d{4}$/.test(trimmed)) {
+      return type === 'start' ? `${trimmed}-01-01` : `${trimmed}-12-31`;
+    }
+    
+    // Year and month: "2025-06"
+    if (/^\d{4}-\d{2}$/.test(trimmed)) {
+      if (type === 'start') {
+        return `${trimmed}-01`;
+      } else {
+        // Get last day of month
+        const [year, month] = trimmed.split('-').map(Number);
+        const lastDay = new Date(year, month, 0).getDate();
+        return `${trimmed}-${lastDay.toString().padStart(2, '0')}`;
+      }
+    }
+    
+    // Try to parse and format
+    try {
+      const date = new Date(trimmed);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+      }
+    } catch (e) {
+      // Fall through to default
+    }
+    
+    // Default: assume it's a year
+    const yearMatch = trimmed.match(/\d{4}/);
+    if (yearMatch) {
+      return type === 'start' ? `${yearMatch[0]}-01-01` : `${yearMatch[0]}-12-31`;
+    }
+    
+    // Last resort: return as-is
+    return trimmed;
   }
 
   /**

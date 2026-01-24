@@ -959,18 +959,28 @@ When the user asks for NEW movie recommendations (not filtering previous results
     "directors": ["director name"],
     "keywords": ["keyword"],
     "minRating": 7.0,
-    "releaseDateFrom": "2020",
-    "releaseDateTo": "2024"
+    "year": 2024,
+    "releaseDateFrom": "2020-01-01",
+    "releaseDateTo": "2024-12-31"
   },
   "message": "I'll find some great movies for you!"
 }
+
+YEAR/DATE RULES (VERY IMPORTANT):
+- For a SINGLE YEAR like "movies from 2025" or "2025 movies" → use "year": 2025 (as a number, not string)
+- For a DATE RANGE like "movies from 2020 to 2024" → use "releaseDateFrom": "2020-01-01", "releaseDateTo": "2024-12-31"
+- ALWAYS use full date format YYYY-MM-DD for releaseDateFrom and releaseDateTo
+- For "recent movies" or "new movies" → use "year": ${new Date().getFullYear()} or releaseDateFrom from last 2 years
+- For decades like "80s movies" → use "releaseDateFrom": "1980-01-01", "releaseDateTo": "1989-12-31"
+- If user says "movies of 2025", use "year": 2025, NOT releaseDateFrom/To
 
 When the user asks to FILTER or REFINE previous movie results (e.g., "filter by year 2020-2026", "only show movies from 2020", "show only high rated ones"), respond with:
 {
   "type": "filter",
   "filterCriteria": {
-    "releaseDateFrom": "2020",
-    "releaseDateTo": "2026",
+    "year": 2020,
+    "releaseDateFrom": "2020-01-01",
+    "releaseDateTo": "2026-12-31",
     "minRating": 8.0,
     "genres": ["Action"],
     "actors": ["Actor Name"]
