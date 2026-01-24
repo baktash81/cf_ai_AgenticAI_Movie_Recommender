@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
-  Bookmark, Filter, Clock, Star, SortAsc, Loader2, 
-  Film, Plus, Bell, Tag
+  Bookmark, Filter, Star, SortAsc, Loader2, 
+  Film, Bell, Tag
 } from 'lucide-react';
-import { watchlistApi, watchHistoryApi } from '../services/api';
+import { watchlistApi } from '../services/api';
 import WatchlistCard from '../components/social/WatchlistCard';
 import type { WatchlistItem } from '../types';
 

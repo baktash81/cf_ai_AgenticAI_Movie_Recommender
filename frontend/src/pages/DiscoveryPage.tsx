@@ -4,7 +4,7 @@ import {
   Sparkles, TrendingUp, Film, Calendar, Compass, 
   ChevronRight, Loader2, RefreshCw
 } from 'lucide-react';
-import { discoveryApi, collectionsApi, trendingApi } from '../services/api';
+import { discoveryApi, collectionsApi } from '../services/api';
 import MovieCard from '../components/chat/MovieCard';
 import CollectionCard from '../components/discovery/CollectionCard';
 import TasteProfile from '../components/discovery/TasteProfile';
@@ -74,7 +74,6 @@ export default function DiscoveryPage() {
             <DiscoverySectionComponent 
               key={section.id} 
               section={section}
-              onCollectionSelect={setSelectedCollection}
             />
           ))}
 
@@ -183,10 +182,9 @@ export default function DiscoveryPage() {
 
 interface DiscoverySectionProps {
   section: DiscoverySection;
-  onCollectionSelect: (collection: CuratedCollection) => void;
 }
 
-function DiscoverySectionComponent({ section, onCollectionSelect }: DiscoverySectionProps) {
+function DiscoverySectionComponent({ section }: DiscoverySectionProps) {
   const sectionIcons: Record<string, React.ElementType> = {
     trending: TrendingUp,
     personalized: Sparkles,

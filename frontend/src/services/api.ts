@@ -392,20 +392,4 @@ export const discoveryApi = {
   },
 };
 
-// Watchlist API
-export const watchlistApi = {
-  get: async (): Promise<{ watchlist: WatchlistItem[] }> => {
-    const response = await api.get('/watchlist');
-    return response.data;
-  },
-
-  add: async (movieId: string, priority?: number): Promise<void> => {
-    await api.post('/watchlist', { movieId, priority });
-  },
-
-  remove: async (movieId: string): Promise<void> => {
-    await api.delete(`/watchlist/${movieId}`);
-  },
-};
-
 export default api;

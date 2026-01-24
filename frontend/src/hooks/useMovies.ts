@@ -53,11 +53,11 @@ export function useWatchlist() {
   const addMutation = useMutation({
     mutationFn: ({ movieId, movieData, priority, notes, tags }: { 
       movieId: string; 
-      movieData?: Movie;
+      movieData: Movie;
       priority?: number;
       notes?: string;
       tags?: string[];
-    }) => watchlistApi.add({ movieId, movieData: movieData!, priority: priority as any, notes, tags }),
+    }) => watchlistApi.add({ movieId, movieData, priority: priority as any, notes, tags }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['watchlist'] });
     },

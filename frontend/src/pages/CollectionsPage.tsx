@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { 
   Film, Calendar, Sparkles, Grid, List, Loader2, 
-  Bookmark, TrendingUp
+  Bookmark
 } from 'lucide-react';
 import { collectionsApi } from '../services/api';
 import CollectionCard from '../components/discovery/CollectionCard';

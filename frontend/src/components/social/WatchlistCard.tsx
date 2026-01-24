@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   Star, Calendar, Clock, Trash2, Edit2, Bell, Tag,
-  ChevronDown, ChevronUp, Check, X, MoreVertical
+  ChevronDown, ChevronUp, Check, MoreVertical
 } from 'lucide-react';
 import type { WatchlistItem, WatchlistPriority } from '../../types';
 import { watchlistApi, watchHistoryApi } from '../../services/api';
