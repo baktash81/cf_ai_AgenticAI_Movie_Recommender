@@ -23,6 +23,7 @@ export interface FeedbackBreakdown {
   like: number;
   dislike: number;
   not_interested: number;
+  hate: number;
   total: number;
 }
 
@@ -209,6 +210,7 @@ export async function fetchFeedbackBreakdown(
     like: 0,
     dislike: 0,
     not_interested: 0,
+    hate: 0,
     total: 0,
   };
 

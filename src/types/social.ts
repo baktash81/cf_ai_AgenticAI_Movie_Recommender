@@ -6,7 +6,7 @@ import { MovieResult } from './movie';
 // PERSONALIZATION TYPES
 // ============================================
 
-export type FeedbackType = 'like' | 'dislike' | 'love' | 'not_interested';
+export type FeedbackType = 'like' | 'dislike' | 'love' | 'not_interested' | 'hate';
 
 export interface MovieFeedback {
   feedbackId: string;

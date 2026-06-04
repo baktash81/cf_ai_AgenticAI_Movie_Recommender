@@ -123,7 +123,7 @@ export default function TasteProfile() {
             Build Your Taste Profile
           </h3>
           <p className="text-gray-500 dark:text-gray-400 text-sm max-w-xs mx-auto">
-            Like or dislike movies to help us understand your preferences and give you better recommendations.
+            Rate movies with the face buttons to help us understand your preferences.
           </p>
         </div>
       )}

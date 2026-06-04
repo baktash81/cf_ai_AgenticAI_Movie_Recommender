@@ -1,12 +1,14 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { 
   Star, Clock, Calendar, Plus, Check, ExternalLink, 
-  Heart, ThumbsUp, ThumbsDown, X, Film, Share2, MoreHorizontal,
+  Film, Share2, MoreHorizontal,
   Tv, Play
 } from 'lucide-react';
 import type { Movie, FeedbackType, WatchProviders } from '../../types';
 import { useWatchlist } from '../../hooks/useMovies';
 import { feedbackApi, watchProvidersApi } from '../../services/api';
+import { FEEDBACK_REACTIONS } from '../../constants/feedbackReactions';
 import SimilarMoviesModal from '../discovery/SimilarMovies';
 import { CreateShareModal } from '../social/ShareList';
 
@@ -31,10 +33,12 @@ export default function MovieCard({
   variant = 'default',
   onFeedbackChange,
 }: Props) {
+  const queryClient = useQueryClient();
   const { watchlist, addToWatchlist, removeFromWatchlist, isAddingToWatchlist } = useWatchlist();
   const [imageError, setImageError] = useState(false);
   const [currentFeedback, setCurrentFeedback] = useState<FeedbackType | null>(null);
-  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [pendingFeedback, setPendingFeedback] = useState<FeedbackType | null>(null);
+  const inFlightRef = useRef(false);
   const [showSimilar, setShowSimilar] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -53,20 +57,29 @@ export default function MovieCard({
     }
   };
 
-  const handleFeedback = useCallback(async (feedbackType: FeedbackType) => {
-    if (isSubmittingFeedback) return;
-    
-    setIsSubmittingFeedback(true);
-    try {
-      await feedbackApi.submit(movie.id, feedbackType, undefined, movie);
-      setCurrentFeedback(feedbackType);
-      onFeedbackChange?.(movie.id, feedbackType);
-    } catch (error) {
-      console.error('Failed to submit feedback:', error);
-    } finally {
-      setIsSubmittingFeedback(false);
-    }
-  }, [movie, isSubmittingFeedback, onFeedbackChange]);
+  const handleFeedback = useCallback((feedbackType: FeedbackType) => {
+    if (inFlightRef.current && pendingFeedback === feedbackType) return;
+
+    const previous = currentFeedback;
+    setCurrentFeedback(feedbackType);
+    setPendingFeedback(feedbackType);
+    onFeedbackChange?.(movie.id, feedbackType);
+    inFlightRef.current = true;
+
+    feedbackApi
+      .submit(movie.id, feedbackType, undefined, movie)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['taste-profile'] });
+      })
+      .catch((error) => {
+        console.error('Failed to submit feedback:', error);
+        setCurrentFeedback(previous);
+      })
+      .finally(() => {
+        inFlightRef.current = false;
+        setPendingFeedback(null);
+      });
+  }, [movie, currentFeedback, pendingFeedback, onFeedbackChange, queryClient]);
 
   const loadWatchProviders = async () => {
     if (providersLoaded || isLoadingProviders) return;
@@ -84,13 +97,6 @@ export default function MovieCard({
 
   const placeholderImage = `https://via.placeholder.com/300x450?text=${encodeURIComponent(movie.title)}`;
 
-  const feedbackButtons = [
-    { type: 'love' as FeedbackType, icon: Heart, label: 'Love', activeColor: 'text-red-500 fill-red-500' },
-    { type: 'like' as FeedbackType, icon: ThumbsUp, label: 'Like', activeColor: 'text-green-500' },
-    { type: 'dislike' as FeedbackType, icon: ThumbsDown, label: 'Dislike', activeColor: 'text-orange-500' },
-    { type: 'not_interested' as FeedbackType, icon: X, label: 'Skip', activeColor: 'text-gray-500' },
-  ];
-
   const isGridVariant = variant === 'grid';
   const tmdbUrl = getTmdbMovieUrl(movie.id);
 
@@ -98,29 +104,37 @@ export default function MovieCard({
     <div
       className={
         dense
-          ? 'grid grid-cols-4 gap-1 w-full'
-          : 'grid grid-cols-4 gap-1.5 w-full max-w-[220px]'
+          ? 'grid grid-cols-5 gap-0.5 w-full'
+          : 'grid grid-cols-5 gap-1 w-full'
       }
+      role="group"
+      aria-label="Rate this movie"
     >
-      {feedbackButtons.map(({ type, icon: Icon, label, activeColor }) => (
-        <button
-          key={type}
-          type="button"
-          onClick={() => handleFeedback(type)}
-          disabled={isSubmittingFeedback}
-          title={label}
-          aria-label={label}
-          className={`flex items-center justify-center rounded-lg transition-all ${
-            dense ? 'h-8 w-full' : 'h-9 w-full'
-          } ${
-            currentFeedback === type
-              ? `bg-gray-100 dark:bg-gray-700 ${activeColor}`
-              : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-          } ${isSubmittingFeedback ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <Icon className={dense ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
-        </button>
-      ))}
+      {FEEDBACK_REACTIONS.map(({ type, emoji, label, activeRing, activeBg }) => {
+        const isActive = currentFeedback === type;
+        const isPending = pendingFeedback === type;
+        return (
+          <button
+            key={type}
+            type="button"
+            onClick={() => handleFeedback(type)}
+            title={label}
+            aria-label={label}
+            aria-pressed={isActive}
+            className={`flex items-center justify-center rounded-lg transition-all duration-150 select-none ${
+              dense ? 'h-9 w-full text-base' : 'h-10 w-full text-lg'
+            } ${
+              isActive
+                ? `${activeBg} ring-2 ${activeRing} scale-105`
+                : 'opacity-70 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700 hover:scale-105'
+            } ${isPending && !isActive ? 'animate-pulse' : ''}`}
+          >
+            <span className="leading-none" aria-hidden>
+              {emoji}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 

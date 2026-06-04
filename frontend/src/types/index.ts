@@ -120,7 +120,7 @@ export interface ConversationWithMessages {
 // PERSONALIZATION TYPES
 // ============================================
 
-export type FeedbackType = 'like' | 'dislike' | 'love' | 'not_interested';
+export type FeedbackType = 'like' | 'dislike' | 'love' | 'not_interested' | 'hate';
 
 export interface MovieFeedback {
   feedback_id: string;
@@ -137,6 +137,7 @@ export interface FeedbackBreakdown {
   like: number;
   dislike: number;
   not_interested: number;
+  hate: number;
   total: number;
 }
 

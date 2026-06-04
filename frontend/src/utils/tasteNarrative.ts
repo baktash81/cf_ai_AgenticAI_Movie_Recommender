@@ -5,6 +5,7 @@ export interface FeedbackBreakdown {
   like: number;
   dislike: number;
   not_interested: number;
+  hate: number;
   total: number;
 }
 

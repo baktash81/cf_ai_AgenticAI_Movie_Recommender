@@ -7,23 +7,20 @@ import {
   Clapperboard,
   Calendar,
   TrendingUp,
-  Heart,
-  ThumbsUp,
-  ThumbsDown,
-  X,
   Loader2,
   RefreshCw,
 } from 'lucide-react';
+import { FEEDBACK_REACTIONS } from '../../constants/feedbackReactions';
 import { tasteProfileApi } from '../../services/api';
 import { buildTasteNarrative, formatLastSynced } from '../../utils/tasteNarrative';
 
 function StatPill({
-  icon: Icon,
+  emoji,
   label,
   value,
   color,
 }: {
-  icon: React.ElementType;
+  emoji: string;
   label: string;
   value: number;
   color: string;
@@ -31,7 +28,7 @@ function StatPill({
   if (value === 0) return null;
   return (
     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${color}`}>
-      <Icon className="h-4 w-4 flex-shrink-0" />
+      <span className="text-lg leading-none" aria-hidden>{emoji}</span>
       <div>
         <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
         <p className="text-sm font-semibold text-gray-900 dark:text-white">{value}</p>
@@ -135,17 +132,22 @@ export default function AboutYourTaste() {
       <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-5">{narrative}</p>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-5">
         <div className="col-span-2 sm:col-span-1 flex flex-col justify-center p-3 rounded-lg bg-primary-50 dark:bg-primary-900/20">
           <span className="text-xs text-gray-500 dark:text-gray-400">Movies rated</span>
           <span className="text-2xl font-bold text-primary-700 dark:text-primary-300">
             {summary.totalMoviesRated}
           </span>
         </div>
-        <StatPill icon={Heart} label="Loved" value={feedbackBreakdown.love} color="bg-red-50 dark:bg-red-900/20" />
-        <StatPill icon={ThumbsUp} label="Liked" value={feedbackBreakdown.like} color="bg-green-50 dark:bg-green-900/20" />
-        <StatPill icon={ThumbsDown} label="Disliked" value={feedbackBreakdown.dislike} color="bg-orange-50 dark:bg-orange-900/20" />
-        <StatPill icon={X} label="Skipped" value={feedbackBreakdown.not_interested} color="bg-gray-100 dark:bg-gray-700/50" />
+        {FEEDBACK_REACTIONS.map((r) => (
+          <StatPill
+            key={r.type}
+            emoji={r.emoji}
+            label={r.label}
+            value={feedbackBreakdown[r.type] ?? 0}
+            color={r.activeBg}
+          />
+        ))}
       </div>
 
       {/* Profile strength */}
@@ -182,7 +184,7 @@ export default function AboutYourTaste() {
       {summary.totalMoviesRated === 0 && (
         <div className="text-center py-6 border-t border-gray-200 dark:border-gray-700">
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-            Head to Discover and use the heart, thumbs, or skip buttons on any movie.
+            Head to Discover and tap a face on any movie to rate how you feel about it.
           </p>
           <Link to="/discover" className="btn-primary inline-flex">
             Explore Discover

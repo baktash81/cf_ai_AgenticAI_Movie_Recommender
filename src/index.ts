@@ -1270,7 +1270,7 @@ Always respond with ONLY the JSON object, nothing else.`
         try {
           const body = await request.json() as {
             movieId: string;
-            feedbackType: 'like' | 'dislike' | 'love' | 'not_interested';
+            feedbackType: 'like' | 'dislike' | 'love' | 'not_interested' | 'hate';
             rating?: number;
             movieData?: any;
           };
@@ -2620,7 +2620,8 @@ async function updateTasteProfile(
       'love': 0.15,
       'like': 0.1,
       'dislike': -0.1,
-      'not_interested': -0.05
+      'not_interested': -0.05,
+      'hate': -0.15,
     };
     const adjustment = adjustments[feedbackType] || 0;
 
