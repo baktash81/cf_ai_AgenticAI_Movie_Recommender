@@ -28,9 +28,9 @@ export default function MovieFeedback({
   };
 
   const buttonSizeClasses = {
-    sm: 'p-1.5',
-    md: 'p-2',
-    lg: 'p-2.5'
+    sm: 'p-2 min-h-[36px] min-w-[36px]',
+    md: 'p-2.5 min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0',
+    lg: 'p-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0'
   };
 
   const handleFeedback = async (feedbackType: FeedbackType) => {
@@ -62,7 +62,7 @@ export default function MovieFeedback({
           key={type}
           onClick={() => handleFeedback(type)}
           disabled={isLoading}
-          className={`${buttonSizeClasses[size]} rounded-full transition-all ${
+          className={`${buttonSizeClasses[size]} flex items-center justify-center rounded-full transition-all ${
             currentFeedback === type
               ? `bg-gray-100 dark:bg-gray-700 ${activeColor}`
               : `text-gray-400 ${hoverColor} hover:bg-gray-100 dark:hover:bg-gray-700`

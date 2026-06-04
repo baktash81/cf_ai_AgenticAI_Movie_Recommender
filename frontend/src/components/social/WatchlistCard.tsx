@@ -69,12 +69,12 @@ export default function WatchlistCard({ item, onRemove, onUpdate, onMarkWatched 
   };
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden transition-all ${
+    <div className={`card overflow-hidden transition-all ${
       isExpanded ? 'ring-2 ring-primary-500' : ''
     }`}>
-      <div className="flex gap-4 p-4">
-        {/* Poster */}
-        <div className="flex-shrink-0 w-20 h-30 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 p-3 sm:p-4">
+        <div className="flex gap-3 sm:gap-4 sm:flex-1 min-w-0">
+        <div className="flex-shrink-0 w-16 sm:w-20 aspect-[2/3] rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
           {movie.posterUrl ? (
             <img 
               src={movie.posterUrl} 
@@ -222,11 +222,12 @@ export default function WatchlistCard({ item, onRemove, onUpdate, onMarkWatched 
             )}
           </button>
         </div>
+        </div>
       </div>
 
       {/* Expanded section */}
       {isExpanded && (
-        <div className="px-4 pb-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+        <div className="px-3 sm:px-4 pb-4 border-t border-gray-200 dark:border-gray-700 pt-4">
           {/* Overview */}
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
             {movie.overview || 'No description available.'}
@@ -285,11 +286,11 @@ export default function WatchlistCard({ item, onRemove, onUpdate, onMarkWatched 
 
           {/* Action buttons */}
           {!isEditing && (
-            <div className="flex gap-2 mt-4">
+            <div className="flex flex-col sm:flex-row gap-2 mt-4">
               <button
                 onClick={handleMarkWatched}
                 disabled={isLoading}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 <Check className="h-4 w-4" />
                 Mark as Watched

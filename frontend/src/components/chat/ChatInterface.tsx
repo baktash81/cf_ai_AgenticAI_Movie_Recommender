@@ -46,7 +46,7 @@ export default function ChatInterface({ initialQuery }: Props) {
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)]">
+    <div className="flex flex-col h-[calc(100dvh-10rem)] sm:h-[calc(100vh-12rem)] min-h-[320px] px-1 sm:px-0">
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto space-y-4 pb-4">
         {messages.length === 0 ? (
@@ -54,7 +54,7 @@ export default function ChatInterface({ initialQuery }: Props) {
             <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900/20 rounded-2xl flex items-center justify-center mb-4">
               <Send className="h-8 w-8 text-primary-600 dark:text-primary-400" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-2">
               Start a conversation
             </h2>
             <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md">
@@ -62,15 +62,16 @@ export default function ChatInterface({ initialQuery }: Props) {
             </p>
             
             {/* Quick prompts */}
-            <div className="flex flex-wrap gap-2 justify-center">
+            <div className="flex flex-wrap gap-2 justify-center w-full max-w-lg">
               {quickPrompts.map((prompt, index) => (
                 <button
                   key={index}
+                  type="button"
                   onClick={() => {
                     setInput(prompt);
                     inputRef.current?.focus();
                   }}
-                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  className="px-3 py-2 sm:px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full text-xs sm:text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-left sm:text-center max-w-full"
                 >
                   {prompt}
                 </button>
@@ -114,7 +115,7 @@ export default function ChatInterface({ initialQuery }: Props) {
           </button>
         )}
         
-        <form onSubmit={handleSubmit} className="flex gap-3">
+        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <input
             ref={inputRef}
             type="text"

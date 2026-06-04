@@ -41,7 +41,7 @@ export default function CollectionCard({ collection, onSelect, compact = false }
     return (
       <button
         onClick={() => onSelect?.(collection)}
-        className="w-full flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-left group"
+        className="w-full flex items-center gap-3 p-3 min-h-[56px] bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-left group"
       >
         {/* Mini poster grid */}
         <div className="w-16 h-16 flex-shrink-0 grid grid-cols-2 gap-0.5 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
@@ -124,7 +124,7 @@ export default function CollectionCard({ collection, onSelect, compact = false }
         <button
           onClick={handleToggleSave}
           disabled={isSaving}
-          className={`absolute top-3 right-3 p-2 rounded-full transition-colors ${
+          className={`absolute top-3 right-3 p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full transition-colors ${
             isSaved
               ? 'bg-primary-600 text-white'
               : 'bg-white/90 text-gray-700 hover:bg-white'
@@ -138,8 +138,8 @@ export default function CollectionCard({ collection, onSelect, compact = false }
         </button>
 
         {/* Title and description */}
-        <div className="absolute bottom-0 left-0 right-0 p-4">
-          <h3 className="text-lg font-bold text-white mb-1">
+        <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
+          <h3 className="text-base sm:text-lg font-bold text-white mb-1">
             {collection.title}
           </h3>
           {collection.description && (

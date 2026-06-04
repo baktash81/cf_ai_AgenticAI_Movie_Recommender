@@ -10,10 +10,10 @@ export default function MessageBubble({ message }: Props) {
   const isUser = message.role === 'user';
 
   return (
-    <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div className={`flex gap-2 sm:gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
       {/* Avatar */}
       <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
           isUser
             ? 'bg-primary-100 dark:bg-primary-900/20'
             : 'bg-gray-100 dark:bg-gray-700'
@@ -27,9 +27,9 @@ export default function MessageBubble({ message }: Props) {
       </div>
 
       {/* Message content */}
-      <div className={`flex-1 max-w-[80%] ${isUser ? 'text-right' : ''}`}>
+      <div className={`flex-1 min-w-0 max-w-[92%] sm:max-w-[85%] md:max-w-[80%] ${isUser ? 'text-right' : ''}`}>
         <div
-          className={`inline-block rounded-2xl px-4 py-2 ${
+          className={`inline-block rounded-2xl px-3 py-2 sm:px-4 text-sm sm:text-base max-w-full ${
             isUser
               ? 'bg-primary-600 text-white rounded-br-md'
               : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-md'
@@ -52,7 +52,7 @@ export default function MessageBubble({ message }: Props) {
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
               Found {message.movies.length} movies:
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid-movie-cards">
               {message.movies.map((movie) => (
                 <MovieCard key={movie.id} movie={movie} />
               ))}

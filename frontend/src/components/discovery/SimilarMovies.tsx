@@ -29,12 +29,11 @@ export default function SimilarMoviesModal({ movie, isOpen, onClose }: Props) {
       />
 
       {/* Modal */}
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden">
-          {/* Header */}
-          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between z-10">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+      <div className="relative min-h-screen flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="relative bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-5xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
+          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4 flex items-start sm:items-center justify-between gap-3 z-10">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">
                 More Like "{movie.title}"
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -50,7 +49,7 @@ export default function SimilarMoviesModal({ movie, isOpen, onClose }: Props) {
           </div>
 
           {/* Content */}
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+          <div className="p-3 sm:p-6 overflow-y-auto max-h-[calc(95vh-72px)] sm:max-h-[calc(90vh-80px)]">
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 text-primary-500 animate-spin mb-4" />
@@ -64,7 +63,7 @@ export default function SimilarMoviesModal({ movie, isOpen, onClose }: Props) {
                 </p>
               </div>
             ) : data?.similarMovies && data.similarMovies.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid-movie-cards">
                 {data.similarMovies.map((similarMovie) => (
                   <MovieCard key={similarMovie.id} movie={similarMovie} />
                 ))}
@@ -128,15 +127,17 @@ export function SimilarMoviesCarousel({ movieId, onMovieSelect }: CarouselProps)
     <div className="relative group">
       {/* Scroll buttons */}
       <button
+        type="button"
         onClick={() => handleScroll('left')}
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white dark:bg-gray-800 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0"
+        className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 min-h-[44px] min-w-[44px] items-center justify-center bg-white dark:bg-gray-800 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0"
         disabled={scrollPosition === 0}
       >
         <ChevronLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
       </button>
       <button
+        type="button"
         onClick={() => handleScroll('right')}
-        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white dark:bg-gray-800 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+        className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 min-h-[44px] min-w-[44px] items-center justify-center bg-white dark:bg-gray-800 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
       >
         <ChevronRight className="h-5 w-5 text-gray-600 dark:text-gray-300" />
       </button>
@@ -144,14 +145,14 @@ export function SimilarMoviesCarousel({ movieId, onMovieSelect }: CarouselProps)
       {/* Carousel */}
       <div
         id={`similar-carousel-${movieId}`}
-        className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth pb-2"
+        className="flex gap-3 sm:gap-4 overflow-x-auto scrollbar-hide scroll-smooth pb-2 -mx-3 px-3 sm:mx-0 sm:px-0"
         onScroll={(e) => setScrollPosition(e.currentTarget.scrollLeft)}
       >
         {data.similarMovies.map((movie) => (
           <button
             key={movie.id}
             onClick={() => onMovieSelect?.(movie)}
-            className="flex-shrink-0 w-32 group/card"
+            className="flex-shrink-0 w-24 sm:w-32 group/card"
           >
             <div className="aspect-[2/3] rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 mb-2 group-hover/card:ring-2 ring-primary-500 transition-all">
               {movie.posterUrl ? (

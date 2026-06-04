@@ -89,30 +89,27 @@ export default function WatchlistPage() {
   });
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Bookmark className="h-6 w-6 text-primary-500" />
+    <div className="page-container-narrow">
+      <div className="page-header">
+        <div className="min-w-0">
+          <h1 className="page-title">
+            <Bookmark className="h-5 w-5 sm:h-6 sm:w-6 text-primary-500 flex-shrink-0" />
             My Watchlist
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+          <p className="page-subtitle">
             {data?.totalCount || 0} movies to watch
             {data?.hasReminders ? ` • ${data.hasReminders} with reminders` : ''}
           </p>
         </div>
       </div>
 
-      {/* Filters and Sort */}
-      <div className="flex flex-wrap gap-4 mb-6">
-        {/* Filter */}
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-gray-400" />
+      <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 mb-6">
+        <div className="flex items-center gap-2 flex-1 min-w-[140px]">
+          <Filter className="h-4 w-4 text-gray-400 flex-shrink-0" />
           <select
             value={filterBy}
             onChange={(e) => setFilterBy(e.target.value as FilterOption)}
-            className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+            className="flex-1 min-h-[44px] px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
           >
             <option value="all">All Movies</option>
             <option value="must_watch">Must Watch</option>
@@ -122,13 +119,12 @@ export default function WatchlistPage() {
           </select>
         </div>
 
-        {/* Sort */}
-        <div className="flex items-center gap-2">
-          <SortAsc className="h-4 w-4 text-gray-400" />
+        <div className="flex items-center gap-2 flex-1 min-w-[140px]">
+          <SortAsc className="h-4 w-4 text-gray-400 flex-shrink-0" />
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortOption)}
-            className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+            className="flex-1 min-h-[44px] px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
           >
             <option value="added_at">Date Added</option>
             <option value="priority">Priority</option>
@@ -185,7 +181,7 @@ export default function WatchlistPage() {
 
       {/* Stats */}
       {data && data.totalCount > 0 && (
-        <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="mt-6 sm:mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <StatCard
             icon={Film}
             label="Total Movies"

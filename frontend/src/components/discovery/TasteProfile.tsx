@@ -10,7 +10,7 @@ export default function TasteProfile() {
 
   if (isLoading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg animate-pulse">
+      <div className="card animate-pulse">
         <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-4"></div>
         <div className="space-y-3">
           <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
@@ -28,9 +28,9 @@ export default function TasteProfile() {
   const strengthPercentage = Math.round(summary.profileStrength * 100);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+    <div className="card">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 sm:mb-6">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary-500" />
           Your Taste Profile
         </h2>

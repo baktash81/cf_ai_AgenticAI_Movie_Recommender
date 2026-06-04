@@ -70,21 +70,19 @@ export default function CollectionsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Film className="h-6 w-6 text-primary-500" />
+    <div className="page-container">
+      <div className="page-header">
+        <div className="min-w-0">
+          <h1 className="page-title">
+            <Film className="h-5 w-5 sm:h-6 sm:w-6 text-primary-500 flex-shrink-0" />
             Collections
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+          <p className="page-subtitle">
             {allCollections.length} curated collections
           </p>
         </div>
 
-        {/* View mode toggle */}
-        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 self-start sm:self-center">
           <button
             onClick={() => setViewMode('grid')}
             className={`p-2 rounded-lg transition-colors ${
@@ -108,13 +106,12 @@ export default function CollectionsPage() {
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
+      <div className="scroll-tabs mb-6 sm:mb-8">
         {filterOptions.map(({ value, label, icon: Icon }) => (
           <button
             key={value}
             onClick={() => setFilterType(value)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors min-h-[40px] ${
               filterType === value
                 ? 'bg-primary-600 text-white'
                 : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -133,10 +130,7 @@ export default function CollectionsPage() {
             <Bookmark className="h-5 w-5 text-primary-500" />
             Saved Collections
           </h2>
-          <div className={viewMode === 'grid' 
-            ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'
-            : 'space-y-3'
-          }>
+          <div className={viewMode === 'grid' ? 'grid-collection-cards' : 'space-y-3'}>
             {data.saved.map((collection) => (
               <CollectionCard
                 key={collection.collection_id}
@@ -161,10 +155,7 @@ export default function CollectionsPage() {
           </p>
         </div>
       ) : (
-        <div className={viewMode === 'grid' 
-          ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'
-          : 'space-y-4'
-        }>
+        <div className={viewMode === 'grid' ? 'grid-collection-cards' : 'space-y-4'}>
           {filteredCollections.map((collection) => (
             <CollectionCard
               key={collection.collection_id}
@@ -194,11 +185,11 @@ function CollectionMovies({ collection, onBack }: CollectionMoviesProps) {
   const movies = data?.collection.movies || collection.movies;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Back button */}
+    <div className="page-container">
       <button
+        type="button"
         onClick={onBack}
-        className="flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-6"
+        className="flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4 sm:mb-6 min-h-[44px]"
       >
         ← Back to Collections
       </button>
@@ -217,11 +208,11 @@ function CollectionMovies({ collection, onBack }: CollectionMoviesProps) {
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
           
-          <div className="absolute bottom-0 left-0 right-0 p-6">
+          <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
             <span className="inline-block px-3 py-1 bg-white/20 backdrop-blur text-white text-sm rounded-full mb-2">
               {collection.collection_type}
             </span>
-            <h1 className="text-2xl font-bold text-white">{collection.title}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">{collection.title}</h1>
             {collection.description && (
               <p className="text-gray-200 mt-1">{collection.description}</p>
             )}
@@ -236,7 +227,7 @@ function CollectionMovies({ collection, onBack }: CollectionMoviesProps) {
           <Loader2 className="h-8 w-8 text-primary-500 animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <div className="grid-movie-cards">
           {movies.map((movie) => (
             <MovieCard key={movie.id} movie={movie} />
           ))}

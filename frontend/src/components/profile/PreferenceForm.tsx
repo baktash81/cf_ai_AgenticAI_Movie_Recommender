@@ -102,7 +102,7 @@ export default function PreferenceForm({ onComplete }: Props) {
           </div>
         ))}
 
-        <div className="flex gap-3">
+        <div className="flex flex-col-reverse sm:flex-row gap-3">
           <button
             type="button"
             onClick={() => {
@@ -161,7 +161,7 @@ export default function PreferenceForm({ onComplete }: Props) {
               key={index}
               type="button"
               onClick={() => setInput(prompt)}
-              className="w-full text-left p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="w-full text-left p-3 sm:p-4 min-h-[44px] bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               <MessageSquare className="h-4 w-4 inline-block mr-2 text-gray-400" />
               {prompt}

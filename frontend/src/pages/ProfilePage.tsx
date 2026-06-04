@@ -35,10 +35,10 @@ export default function ProfilePage() {
   // Show preference setup for new users
   if (user && !user.profileCompleted) {
     return (
-      <div className="max-w-2xl mx-auto">
+      <div className="page-container-narrow">
         <div className="card">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+          <div className="text-center mb-6 sm:mb-8">
+            <h1 className="page-title justify-center mb-2">
               Let's personalize your experience
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
@@ -52,12 +52,12 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Profile</h1>
+    <div className="page-container-narrow space-y-4 sm:space-y-6">
+      <h1 className="page-title">Profile</h1>
 
       {/* User info */}
       <div className="card">
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col sm:flex-row items-start gap-4">
           <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900/20 rounded-full flex items-center justify-center flex-shrink-0">
             {user?.avatarUrl ? (
               <img
@@ -72,7 +72,7 @@ export default function ProfilePage() {
           
           <div className="flex-1">
             {isEditing ? (
-              <form onSubmit={handleUpdateName} className="flex gap-2">
+              <form onSubmit={handleUpdateName} className="flex flex-col sm:flex-row gap-2 w-full">
                 <input
                   type="text"
                   value={name}

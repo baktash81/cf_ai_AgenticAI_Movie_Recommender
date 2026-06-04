@@ -6,17 +6,15 @@ export default function ChatPage() {
   const initialQuery = (location.state as { initialQuery?: string })?.initialQuery;
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Movie Recommendations
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">
+    <div className="page-container">
+      <div className="mb-4 sm:mb-6">
+        <h1 className="page-title">Movie Recommendations</h1>
+        <p className="page-subtitle">
           Chat with AI to discover your next favorite movie
         </p>
       </div>
-      
-      <div className="card">
+
+      <div className="card p-3 sm:p-4 md:p-6">
         <ChatInterface initialQuery={initialQuery} />
       </div>
     </div>

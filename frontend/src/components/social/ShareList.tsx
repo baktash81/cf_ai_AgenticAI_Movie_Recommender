@@ -62,8 +62,8 @@ export function CreateShareModal({ movies, isOpen, onClose, onSuccess }: CreateS
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={handleClose} />
       
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full">
+      <div className="relative min-h-[100dvh] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="relative bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[95vh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">

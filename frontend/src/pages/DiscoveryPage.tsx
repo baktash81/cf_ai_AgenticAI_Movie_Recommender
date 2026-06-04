@@ -37,31 +37,31 @@ export default function DiscoveryPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Compass className="h-6 w-6 text-primary-500" />
+    <div className="page-container">
+      <div className="page-header">
+        <div className="min-w-0">
+          <h1 className="page-title">
+            <Compass className="h-5 w-5 sm:h-6 sm:w-6 text-primary-500 flex-shrink-0" />
             Discover
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+          <p className="page-subtitle">
             Explore curated collections and personalized picks
           </p>
         </div>
         <button
+          type="button"
           onClick={() => refetch()}
           disabled={isFetching}
-          className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+          className="self-start sm:self-center p-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 min-h-[44px] min-w-[44px] flex items-center justify-center"
           title="Refresh"
         >
           <RefreshCw className={`h-5 w-5 ${isFetching ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         {/* Main content */}
-        <div className="lg:col-span-2 space-y-10">
+        <div className="lg:col-span-2 space-y-8 sm:space-y-10 min-w-0">
           {isLoadingDiscovery && !discoveryData ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Loader2 className="h-8 w-8 text-primary-500 animate-spin mb-4" />
@@ -84,7 +84,7 @@ export default function DiscoveryPage() {
 
           {/* Saved Collections */}
           {collectionsData?.saved && collectionsData.saved.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
+            <div className="card">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Saved Collections
               </h3>
@@ -152,9 +152,9 @@ function DiscoverySectionComponent({ section }: DiscoverySectionProps) {
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3 sm:mb-4">
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2 flex-wrap">
             <Icon className={`h-5 w-5 ${section.type === 'personalized' ? 'text-yellow-500' : 'text-primary-500'}`} />
             {section.title}
           </h2>
@@ -175,7 +175,7 @@ function DiscoverySectionComponent({ section }: DiscoverySectionProps) {
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div className="grid-movie-cards">
         {(section.items as Movie[]).slice(0, 10).map((movie) => (
           <MovieCard key={movie.id} movie={movie} />
         ))}
@@ -199,11 +199,11 @@ function CollectionDetail({ collection, onBack }: CollectionDetailProps) {
   const movies = data?.collection.movies || collection.movies;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Back button */}
+    <div className="page-container">
       <button
+        type="button"
         onClick={onBack}
-        className="flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-6"
+        className="flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4 sm:mb-6 min-h-[44px]"
       >
         <ChevronRight className="h-4 w-4 rotate-180" />
         Back to Discovery
@@ -224,14 +224,14 @@ function CollectionDetail({ collection, onBack }: CollectionDetailProps) {
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
           
-          <div className="absolute bottom-0 left-0 right-0 p-8">
+          <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 md:p-8">
             <div className="max-w-3xl">
-              <span className="inline-block px-3 py-1 bg-white/20 backdrop-blur text-white text-sm rounded-full mb-3">
+              <span className="inline-block px-3 py-1 bg-white/20 backdrop-blur text-white text-xs sm:text-sm rounded-full mb-2 sm:mb-3">
                 {collection.collection_type}
               </span>
-              <h1 className="text-3xl font-bold text-white mb-2">{collection.title}</h1>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-2">{collection.title}</h1>
               {collection.description && (
-                <p className="text-gray-200 text-lg">{collection.description}</p>
+                <p className="text-gray-200 text-sm sm:text-base md:text-lg line-clamp-3">{collection.description}</p>
               )}
               <p className="text-gray-300 mt-3">{movies.length} movies</p>
             </div>
@@ -245,7 +245,7 @@ function CollectionDetail({ collection, onBack }: CollectionDetailProps) {
           <Loader2 className="h-8 w-8 text-primary-500 animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <div className="grid-movie-cards">
           {movies.map((movie) => (
             <MovieCard key={movie.id} movie={movie} />
           ))}

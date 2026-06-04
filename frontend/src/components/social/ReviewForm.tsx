@@ -54,10 +54,9 @@ export default function ReviewForm({ movie, onSuccess, onCancel, initialRating }
   const displayRating = hoverRating || rating;
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-      {/* Movie info */}
-      <div className="flex gap-4 mb-6">
-        <div className="w-16 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
+    <form onSubmit={handleSubmit} className="card">
+      <div className="flex gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <div className="w-14 sm:w-16 aspect-[2/3] flex-shrink-0 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
           {movie.posterUrl ? (
             <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover" />
           ) : (

@@ -80,8 +80,8 @@ export default function MovieCard({ movie, showFeedback = true, compact = false,
 
   if (compact) {
     return (
-      <div className="flex gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
-        <div className="flex-shrink-0 w-12 h-18 rounded overflow-hidden bg-gray-200 dark:bg-gray-700">
+      <div className="flex gap-3 p-3 sm:p-4 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors w-full">
+        <div className="flex-shrink-0 w-14 sm:w-16 aspect-[2/3] rounded overflow-hidden bg-gray-200 dark:bg-gray-700">
           <img
             src={imageError || !movie.posterUrl ? placeholderImage : movie.posterUrl}
             alt={movie.title}
@@ -193,7 +193,7 @@ export default function MovieCard({ movie, showFeedback = true, compact = false,
         </div>
 
         {/* Info */}
-        <div className="p-4">
+        <div className="p-3 sm:p-4">
           <h3 className="font-semibold text-gray-900 dark:text-white truncate" title={movie.title}>
             {movie.title}
           </h3>
@@ -236,8 +236,8 @@ export default function MovieCard({ movie, showFeedback = true, compact = false,
 
           {/* Feedback buttons */}
           {showFeedback && (
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-1 justify-center sm:justify-start">
                 {feedbackButtons.map(({ type, icon: Icon, activeColor }) => (
                   <button
                     key={type}
