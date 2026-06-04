@@ -44,6 +44,54 @@ export interface Movie {
   productionCompanies?: string[];
 }
 
+export interface CastMember {
+  id: number;
+  name: string;
+  character: string;
+  profileUrl?: string;
+  order: number;
+}
+
+export interface MovieDetail extends Movie {
+  cast: CastMember[];
+  crew: Array<{ name: string; job: string; department?: string }>;
+  keywords: string[];
+  facts: string[];
+  status?: string;
+  imdbId?: string;
+  homepage?: string;
+  productionCountries: string[];
+  spokenLanguages: string[];
+  collectionName?: string;
+  posterUrlLarge?: string;
+}
+
+export interface MovieBrowseParams {
+  q?: string;
+  genres?: string;
+  year?: number;
+  yearFrom?: string;
+  yearTo?: string;
+  minRating?: number;
+  minVotes?: number;
+  language?: string;
+  runtimeMin?: number;
+  runtimeMax?: number;
+  actor?: string;
+  director?: string;
+  sortBy?: 'popularity' | 'rating' | 'release_date' | 'revenue' | 'title';
+  sortOrder?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}
+
+export interface MovieBrowseResponse {
+  movies: Movie[];
+  page: number;
+  totalPages: number;
+  totalResults: number;
+}
+
 export interface MovieSearchResult {
   movies: Movie[];
   count: number;

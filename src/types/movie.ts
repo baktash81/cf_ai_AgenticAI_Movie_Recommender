@@ -8,10 +8,14 @@ export interface MovieRequest {
 }
 
 export interface MovieCriteria {
+  /** Title search (TMDB /search/movie) */
+  query?: string;
   // Date range
   releaseDateFrom?: string; // YYYY-MM-DD or YYYY
   releaseDateTo?: string;
   year?: number; // Specific year
+  runtimeMin?: number;
+  runtimeMax?: number;
   
   // Content filters
   genres?: string[]; // e.g., ["Action", "Drama", "Comedy"]
@@ -72,6 +76,28 @@ export interface MovieResult {
   tagline?: string;
   productionCompanies?: string[];
   similarMovies?: string[]; // IDs of similar movies
+}
+
+export interface CastMember {
+  id: number;
+  name: string;
+  character: string;
+  profileUrl?: string;
+  order: number;
+}
+
+export interface MovieDetail extends MovieResult {
+  cast: CastMember[];
+  crew: Array<{ name: string; job: string; department?: string }>;
+  keywords: string[];
+  facts: string[];
+  status?: string;
+  imdbId?: string;
+  homepage?: string;
+  productionCountries: string[];
+  spokenLanguages: string[];
+  collectionName?: string;
+  posterUrlLarge?: string;
 }
 
 export interface MovieSearchInfo {

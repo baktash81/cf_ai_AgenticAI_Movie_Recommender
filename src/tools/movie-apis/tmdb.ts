@@ -1,4 +1,4 @@
-import { MovieCriteria, MovieResult } from '../../types/movie';
+import { MovieCriteria, MovieResult, MovieDetail, CastMember } from '../../types/movie';
 
 interface TMDBMovie {
   id: number;
@@ -195,6 +195,14 @@ export class TMDBAPI {
     // Pagination
     url.searchParams.append('page', (criteria.page || 1).toString());
     
+    // Runtime (minutes)
+    if (criteria.runtimeMin !== undefined) {
+      url.searchParams.append('with_runtime.gte', criteria.runtimeMin.toString());
+    }
+    if (criteria.runtimeMax !== undefined) {
+      url.searchParams.append('with_runtime.lte', criteria.runtimeMax.toString());
+    }
+
     // Adult content
     url.searchParams.append('include_adult', criteria.includeAdult === true ? 'true' : 'false');
     
@@ -683,6 +691,225 @@ export class TMDBAPI {
       console.error('Error getting collection:', error);
       return null;
     }
+  }
+
+  /**
+   * Browse TMDB catalog: text search or discover with filters
+   */
+  async browseMovies(criteria: MovieCriteria): Promise<{
+    movies: MovieResult[];
+    page: number;
+    totalPages: number;
+    totalResults: number;
+  }> {
+    const page = criteria.page || 1;
+    const limit = Math.min(criteria.limit || 20, 40);
+
+    if (criteria.query?.trim()) {
+      return this.searchByTitle(criteria.query.trim(), page, criteria.year, limit);
+    }
+
+    if (criteria.actors?.[0] && !criteria.genres?.length) {
+      const movies = await this.searchByActor(criteria.actors[0], {
+        ...criteria,
+        limit,
+        page,
+      });
+      return {
+        movies,
+        page: 1,
+        totalPages: 1,
+        totalResults: movies.length,
+      };
+    }
+
+    if (criteria.directors?.[0] && !criteria.genres?.length) {
+      const movies = await this.searchByDirector(criteria.directors[0], {
+        ...criteria,
+        limit,
+        page,
+      });
+      return {
+        movies,
+        page: 1,
+        totalPages: 1,
+        totalResults: movies.length,
+      };
+    }
+
+    const url = this.buildSearchUrl({ ...criteria, page, limit });
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) {
+      throw new Error(`TMDB browse error: ${response.statusText}`);
+    }
+    const data: TMDBResponse = await response.json();
+    return {
+      movies: data.results.map((m) => this.mapBasicMovie(m)),
+      page: data.page,
+      totalPages: data.total_pages,
+      totalResults: data.total_results,
+    };
+  }
+
+  private async searchByTitle(
+    query: string,
+    page: number,
+    year?: number,
+    limit = 20
+  ): Promise<{ movies: MovieResult[]; page: number; totalPages: number; totalResults: number }> {
+    const url = new URL(`${this.baseUrl}/search/movie`);
+    url.searchParams.append('api_key', this.apiKey);
+    url.searchParams.append('query', query);
+    url.searchParams.append('page', page.toString());
+    url.searchParams.append('include_adult', 'false');
+    if (year) url.searchParams.append('year', year.toString());
+
+    const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+    if (!response.ok) {
+      throw new Error(`TMDB search error: ${response.statusText}`);
+    }
+    const data: TMDBResponse = await response.json();
+    return {
+      movies: data.results.slice(0, limit).map((m) => this.mapBasicMovie(m)),
+      page: data.page,
+      totalPages: data.total_pages,
+      totalResults: data.total_results,
+    };
+  }
+
+  /**
+   * Full movie detail for detail drawer (cast, facts, large poster)
+   */
+  async getMovieDetail(movieId: string): Promise<MovieDetail | null> {
+    const id = movieId.replace(/\D/g, '') || movieId;
+    try {
+      const url = `${this.baseUrl}/movie/${id}?api_key=${this.apiKey}&append_to_response=credits,keywords`;
+      const response = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!response.ok) return null;
+
+      const data = await response.json() as TMDBDetails & {
+        credits?: TMDBCredits & {
+          cast?: Array<{
+            id: number;
+            name: string;
+            character: string;
+            profile_path: string | null;
+            order: number;
+          }>;
+          crew?: Array<{ name: string; job: string; department?: string }>;
+        };
+        keywords?: { keywords?: Array<{ name: string }> };
+        belongs_to_collection?: { name: string };
+        imdb_id?: string;
+        homepage?: string;
+        status?: string;
+        production_countries?: Array<{ name: string }>;
+        spoken_languages?: Array<{ english_name: string }>;
+        poster_path?: string | null;
+      };
+
+      const cast: CastMember[] = (data.credits?.cast || [])
+        .slice(0, 15)
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          character: c.character,
+          profileUrl: c.profile_path
+            ? `https://image.tmdb.org/t/p/w185${c.profile_path}`
+            : undefined,
+          order: c.order,
+        }));
+
+      const facts: string[] = [];
+      if (data.tagline) facts.push(`Tagline: "${data.tagline}"`);
+      if (data.runtime) facts.push(`Runtime: ${data.runtime} minutes`);
+      if (data.budget && data.budget > 0) {
+        facts.push(`Budget: $${(data.budget / 1_000_000).toFixed(1)}M`);
+      }
+      if (data.revenue && data.revenue > 0) {
+        facts.push(`Box office: $${(data.revenue / 1_000_000).toFixed(1)}M`);
+      }
+      if (data.production_countries?.length) {
+        facts.push(`Made in: ${data.production_countries.map((c) => c.name).join(', ')}`);
+      }
+      if (data.belongs_to_collection?.name) {
+        facts.push(`Part of the ${data.belongs_to_collection.name} collection`);
+      }
+      if (data.vote_count > 100) {
+        facts.push(`Rated by ${data.vote_count.toLocaleString()} TMDB users`);
+      }
+
+      const genreNames = data.genres?.map((g) => g.name) || [];
+      const director = data.credits?.crew?.find((p) => p.job === 'Director')?.name;
+
+      return {
+        id: data.id.toString(),
+        title: data.title,
+        originalTitle: data.original_title,
+        overview: data.overview || '',
+        releaseDate: data.release_date,
+        genres: genreNames,
+        actors: cast.slice(0, 5).map((c) => c.name),
+        director,
+        rating: data.vote_average,
+        voteCount: data.vote_count,
+        popularity: data.popularity,
+        posterUrl: data.poster_path
+          ? `${this.imageBaseUrl}${data.poster_path}`
+          : undefined,
+        posterUrlLarge: data.poster_path
+          ? `https://image.tmdb.org/t/p/w780${data.poster_path}`
+          : undefined,
+        backdropUrl: data.backdrop_path
+          ? `https://image.tmdb.org/t/p/w1280${data.backdrop_path}`
+          : undefined,
+        runtime: data.runtime,
+        language: data.original_language,
+        adult: data.adult,
+        budget: data.budget,
+        revenue: data.revenue,
+        tagline: data.tagline,
+        productionCompanies: data.production_companies?.map((c) => c.name),
+        cast,
+        crew: (data.credits?.crew || []).slice(0, 12),
+        keywords: (data.keywords?.keywords || []).slice(0, 12).map((k) => k.name),
+        facts,
+        status: data.status,
+        imdbId: data.imdb_id,
+        homepage: data.homepage,
+        productionCountries: (data.production_countries || []).map((c) => c.name),
+        spokenLanguages: (data.spoken_languages || []).map((l) => l.english_name),
+        collectionName: data.belongs_to_collection?.name,
+      };
+    } catch (error) {
+      console.error('Error getting movie detail:', error);
+      return null;
+    }
+  }
+
+  /** Genre list for browse filters */
+  getGenreList(): Array<{ id: number; name: string }> {
+    return [
+      { id: 28, name: 'Action' },
+      { id: 12, name: 'Adventure' },
+      { id: 16, name: 'Animation' },
+      { id: 35, name: 'Comedy' },
+      { id: 80, name: 'Crime' },
+      { id: 99, name: 'Documentary' },
+      { id: 18, name: 'Drama' },
+      { id: 10751, name: 'Family' },
+      { id: 14, name: 'Fantasy' },
+      { id: 36, name: 'History' },
+      { id: 27, name: 'Horror' },
+      { id: 10402, name: 'Music' },
+      { id: 9648, name: 'Mystery' },
+      { id: 10749, name: 'Romance' },
+      { id: 878, name: 'Science Fiction' },
+      { id: 10770, name: 'TV Movie' },
+      { id: 53, name: 'Thriller' },
+      { id: 10752, name: 'War' },
+      { id: 37, name: 'Western' },
+    ];
   }
 }
 

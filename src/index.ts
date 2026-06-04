@@ -24,6 +24,7 @@ import {
   authenticateRequest,
 } from './utils/auth';
 import { cachedJsonResponse } from './utils/cache';
+import type { MovieCriteria } from './types/movie';
 import { getTasteProfilePayload, maybeSyncTasteToPreferences } from './utils/taste-sync';
 
 // Export Workflows and Agents (Durable Objects) for Cloudflare Workers
@@ -2333,6 +2334,110 @@ Always respond with ONLY the JSON object, nothing else.`
         } catch (error) {
           return new Response(
             JSON.stringify({ error: 'Failed to get watch providers' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /movies/genres - Genre list for browse filters
+      if (path === '/movies/genres' && method === 'GET') {
+        try {
+          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+          return new Response(
+            JSON.stringify({ genres: tmdb.getGenreList() }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch {
+          return new Response(
+            JSON.stringify({ error: 'Failed to load genres' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /movies/browse - Search & filter TMDB catalog
+      if (path === '/movies/browse' && method === 'GET') {
+        try {
+          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+
+          const genresParam = url.searchParams.get('genres');
+          const criteria = {
+            query: url.searchParams.get('q') || undefined,
+            genres: genresParam ? genresParam.split(',').filter(Boolean) : undefined,
+            year: url.searchParams.get('year')
+              ? parseInt(url.searchParams.get('year')!, 10)
+              : undefined,
+            releaseDateFrom: url.searchParams.get('yearFrom') || undefined,
+            releaseDateTo: url.searchParams.get('yearTo') || undefined,
+            minRating: url.searchParams.get('minRating')
+              ? parseFloat(url.searchParams.get('minRating')!)
+              : undefined,
+            minVoteCount: url.searchParams.get('minVotes')
+              ? parseInt(url.searchParams.get('minVotes')!, 10)
+              : undefined,
+            language: url.searchParams.get('language') || undefined,
+            runtimeMin: url.searchParams.get('runtimeMin')
+              ? parseInt(url.searchParams.get('runtimeMin')!, 10)
+              : undefined,
+            runtimeMax: url.searchParams.get('runtimeMax')
+              ? parseInt(url.searchParams.get('runtimeMax')!, 10)
+              : undefined,
+            actors: url.searchParams.get('actor')
+              ? [url.searchParams.get('actor')!]
+              : undefined,
+            directors: url.searchParams.get('director')
+              ? [url.searchParams.get('director')!]
+              : undefined,
+            sortBy: (url.searchParams.get('sortBy') as MovieCriteria['sortBy']) || 'popularity',
+            sortOrder: (url.searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc',
+            page: url.searchParams.get('page')
+              ? parseInt(url.searchParams.get('page')!, 10)
+              : 1,
+            limit: url.searchParams.get('limit')
+              ? parseInt(url.searchParams.get('limit')!, 10)
+              : 20,
+          };
+
+          return cachedJsonResponse(request, 300, async () => {
+            const data = await tmdb.browseMovies(criteria);
+            return new Response(JSON.stringify(data), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          });
+        } catch (error) {
+          console.error('Browse movies error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to browse movies' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Route: GET /movies/:id/detail - Full movie detail
+      if (path.match(/^\/movies\/[^/]+\/detail$/) && method === 'GET') {
+        const movieId = path.split('/')[2];
+        try {
+          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+          const detail = await tmdb.getMovieDetail(movieId);
+
+          if (!detail) {
+            return new Response(
+              JSON.stringify({ error: 'Movie not found' }),
+              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          return new Response(
+            JSON.stringify({ movie: detail }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('Movie detail error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to load movie detail' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }

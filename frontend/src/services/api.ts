@@ -23,6 +23,9 @@ import type {
   WatchProviders,
   DiscoveryResponse,
   Movie,
+  MovieBrowseParams,
+  MovieBrowseResponse,
+  MovieDetail,
 } from '../types';
 
 // Create axios instance
@@ -388,6 +391,29 @@ export const watchProvidersApi = {
 export const discoveryApi = {
   get: async (): Promise<DiscoveryResponse> => {
     const response = await api.get('/discovery');
+    return response.data;
+  },
+};
+
+export const moviesBrowseApi = {
+  genres: async (): Promise<{ genres: Array<{ id: number; name: string }> }> => {
+    const response = await api.get('/movies/genres');
+    return response.data;
+  },
+
+  browse: async (params: MovieBrowseParams): Promise<MovieBrowseResponse> => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '' && value !== null) {
+        search.append(key, String(value));
+      }
+    });
+    const response = await api.get(`/movies/browse?${search}`);
+    return response.data;
+  },
+
+  detail: async (movieId: string): Promise<{ movie: MovieDetail }> => {
+    const response = await api.get(`/movies/${movieId}/detail`);
     return response.data;
   },
 };
