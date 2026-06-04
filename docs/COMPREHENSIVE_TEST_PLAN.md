@@ -30,14 +30,13 @@ Use this document as the single source of truth for manual QA, release checks, a
 | MM-ENV-005 | P2 | Mobile viewport | Resize to 375px width | Responsive nav and cards usable | [ ] | |
 | MM-ENV-006 | P2 | Dark mode | Toggle OS/browser dark mode | Theme readable, contrast OK | [ ] | |
 
-**Automated smoke (optional):**
+**Automated suite (recommended):**
 
 ```bash
-BASE=https://movie.baktashans.com/api
-curl -sf "$BASE/trending?limit=1" | jq '.movies | length'
-curl -sf "$BASE/discovery" | jq '.sections | length'
-curl -sf -o /dev/null -w "%{http_code}" https://movie.baktashans.com/  # expect 200
+npm test   # 120 Vitest tests — unit, API integration, site smoke, full E2E journey
 ```
+
+Covers auth validation, every major API route, chat/recommend AI flows, watchlist/reviews/shared lists, and production site assets. See `tests/` in the repo.
 
 ---
 

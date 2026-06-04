@@ -320,7 +320,23 @@ VITE_API_URL=https://your-worker.workers.dev
 
 ## Testing
 
-See [docs/COMPREHENSIVE_TEST_PLAN.md](docs/COMPREHENSIVE_TEST_PLAN.md) for the full manual QA checklist (infrastructure, API, UI, E2E journeys, and pre-release regression).
+**Automated suite (120 tests)** — runs against the live Cloudflare Worker API and production site:
+
+```bash
+npm test              # all tests (~2 min)
+npm run test:unit     # auth utils only (fast)
+npm run test:integration
+npm run test:site     # frontend smoke (movie.baktashans.com)
+```
+
+Optional environment variables:
+
+```bash
+MOVIE_API_BASE_URL=https://movie-recommendation-system.baktash-ansari1381.workers.dev
+MOVIE_SITE_URL=https://movie.baktashans.com
+```
+
+Manual QA checklist: [docs/COMPREHENSIVE_TEST_PLAN.md](docs/COMPREHENSIVE_TEST_PLAN.md)
 
 ## Contributing
 

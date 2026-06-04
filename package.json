@@ -21,7 +21,12 @@
     "vectorize:create": "npx wrangler vectorize create user-preferences-index --dimensions=12 --metric=cosine",
     "vectorize:list": "npx wrangler vectorize list",
     "setup": "bash setup.sh",
-    "setup:win": "powershell -ExecutionPolicy Bypass -File setup.ps1"
+    "setup:win": "powershell -ExecutionPolicy Bypass -File setup.ps1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:site": "vitest run tests/frontend"
   },
   "keywords": [
     "cloudflare",
@@ -38,6 +43,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",
     "typescript": "^5.3.3",
+    "vitest": "^3.0.5",
     "wrangler": "^4.60.0"
   }
 }

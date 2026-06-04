@@ -1,0 +1,30 @@
+name: Test MovieMind
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Run automated test suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm install
+
+      - name: Run tests against production API
+        run: npm test
+        env:
+          MOVIE_API_BASE_URL: https://movie-recommendation-system.baktash-ansari1381.workers.dev
+          MOVIE_SITE_URL: https://movie.baktashans.com
