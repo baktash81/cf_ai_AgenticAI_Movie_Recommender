@@ -70,9 +70,14 @@ export class MovieSearchWorkflow extends WorkflowEntrypoint<Env, MovieSearchPara
     }
     
     // Deduplicate by movie ID
-    const uniqueResults = Array.from(
+    let uniqueResults = Array.from(
       new Map(results.map(movie => [movie.id, movie])).values()
     );
+
+    if (criteria.excludeMovieIds && criteria.excludeMovieIds.length > 0) {
+      const exclude = new Set(criteria.excludeMovieIds.map(String));
+      uniqueResults = uniqueResults.filter((m) => !exclude.has(String(m.id)));
+    }
     
     // Sort by relevance (rating * popularity)
     uniqueResults.sort((a, b) => 

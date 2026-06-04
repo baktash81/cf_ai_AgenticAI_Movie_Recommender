@@ -50,7 +50,9 @@ export default function MessageBubble({ message }: Props) {
         {message.movies && message.movies.length > 0 && (
           <div className="mt-4">
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-              Found {message.movies.length} movies:
+              {message.movies.length === 1
+                ? 'Your pick:'
+                : `Found ${message.movies.length} movies:`}
             </p>
             <div className="grid-movie-cards">
               {message.movies.map((movie) => (

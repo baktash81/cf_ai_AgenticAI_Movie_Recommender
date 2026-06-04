@@ -23,6 +23,8 @@ export interface MovieCriteria {
   actors?: string[]; // Actor names
   directors?: string[]; // Director names
   keywords?: string[]; // Search keywords
+  /** TMDB movie IDs to omit (already shown in chat, etc.) */
+  excludeMovieIds?: string[];
   
   // Quality filters
   minRating?: number; // 0-10 (TMDB uses 0-10 scale)

@@ -9,7 +9,7 @@ interface Props {
 
 export default function ChatInterface({ initialQuery }: Props) {
   const [input, setInput] = useState('');
-  const { messages, isLoading, sendMessage, startNewConversation } = useChatContext();
+  const { messages, isLoading, sendMessage, startNewConversation, suggestedFollowUps } = useChatContext();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -105,6 +105,21 @@ export default function ChatInterface({ initialQuery }: Props) {
 
       {/* Input area */}
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+        {suggestedFollowUps.length > 0 && !isLoading && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {suggestedFollowUps.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => sendMessage(prompt)}
+                className="px-3 py-1.5 text-xs sm:text-sm rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800 hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-colors"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        )}
+
         {messages.length > 0 && (
           <button
             onClick={startNewConversation}

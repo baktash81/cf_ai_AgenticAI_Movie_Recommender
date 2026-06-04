@@ -136,15 +136,18 @@ export interface ChatMessage {
   searchId?: string;
   movies?: Movie[];
   isLoadingMovies?: boolean;
+  suggestedFollowUps?: string[];
 }
 
 export interface ChatResponse {
-  type: 'recommendation' | 'chat';
+  type: 'recommendation' | 'chat' | 'filter';
   message: string;
   searchId?: string;
   conversationId?: string;
   messageId?: string;
-  movies?: Movie[]; // For filtered results returned directly
+  movies?: Movie[];
+  suggestedFollowUps?: string[];
+  userIntentSummary?: string;
 }
 
 // Conversation types

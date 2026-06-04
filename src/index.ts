@@ -31,6 +31,15 @@ import {
   hydrateCollectionsBatch,
   formatCollectionForApi,
 } from './utils/collection-hydrate';
+import { buildChatSystemPrompt } from './prompts/chat-intent';
+import {
+  collectShownMovieIds,
+  getLatestMoviesFromHistory,
+  normalizeSuggestedFollowUps,
+  attachExcludeIds,
+  applyResultLimitToCriteria,
+  inferResultLimit,
+} from './utils/chat-context';
 
 // Export Workflows and Agents (Durable Objects) for Cloudflare Workers
 export { MovieSearchWorkflow };
@@ -783,26 +792,24 @@ export default {
             ORDER BY created_at DESC
             LIMIT 10
           `).bind(conversationId).all();
-          
-          const conversationHistory = (historyResult.results || [])
-            .reverse()
-            .map((msg: any) => ({ role: msg.role, content: msg.content }));
-          
-          // Get previous movies from the conversation (for follow-up filtering)
-          let previousMovies: any[] | null = null;
-          for (const msg of historyResult.results.reverse()) {
-            if (msg.movies_data) {
-              try {
-                previousMovies = JSON.parse(msg.movies_data);
-                break; // Get the most recent movies
-              } catch (e) {
-                console.error('Failed to parse previous movies:', e);
-              }
-            }
-          }
 
-          // Fetch user preferences for intelligent merging
+          const historyRowsDesc = (historyResult.results || []) as Array<{
+            role: string;
+            content: string;
+            movies_data?: string | null;
+          }>;
+          const historyRowsChron = [...historyRowsDesc].reverse();
+
+          const conversationHistory = historyRowsChron.map((msg) => ({
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content,
+          }));
+
+          const previousMovies = getLatestMoviesFromHistory(historyRowsDesc);
+          const shownMovieIds = collectShownMovieIds(historyRowsDesc);
+
           let userPreferences: any = null;
+          let tasteSummary: any = null;
           try {
             const prefAgentId = env.MOVIE_PREFERENCE_ANALYSIS_AGENT.idFromName(auth.userId);
             const prefAgent = env.MOVIE_PREFERENCE_ANALYSIS_AGENT.get(prefAgentId);
@@ -811,84 +818,28 @@ export default {
             console.log('Could not fetch user preferences:', prefError);
           }
 
-          // Use AI to understand user intent and generate response
+          try {
+            const tastePayload = await getTasteProfilePayload(env, auth.userId, { sync: false });
+            tasteSummary = tastePayload.summary;
+          } catch (tasteError) {
+            console.log('Could not fetch taste profile:', tasteError);
+          }
+
+          const systemPrompt = buildChatSystemPrompt({
+            previousMoviesCount: previousMovies?.length ?? 0,
+            previousMovieTitles: (previousMovies || []).slice(0, 6).map((m: { title?: string }) => m.title || ''),
+            shownMovieIds,
+            preferences: userPreferences,
+            tasteSummary,
+            currentYear: new Date().getFullYear(),
+          });
+
           const aiResult = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
             messages: [
-              {
-                role: "system",
-                content: `You are a helpful movie recommendation assistant.
-
-IMPORTANT: You MUST respond with valid JSON only. No other text.
-
-CONTEXT: ${previousMovies && previousMovies.length > 0 
-  ? `The user previously received ${previousMovies.length} movies. If the user asks to filter, refine, or narrow down these results, respond with type "filter" instead of "recommendation".`
-  : 'This is a new conversation or no previous movies were shown.'}
-
-When the user asks for NEW movie recommendations (not filtering previous results), respond with:
-{
-  "type": "recommendation",
-  "specificity": "specific" or "vague",
-  "criteria": { 
-    "genres": ["genre1", "genre2"],
-    "actors": ["actor name"],
-    "directors": ["director name"],
-    "keywords": ["keyword"],
-    "minRating": 7.0,
-    "year": 2024,
-    "releaseDateFrom": "2020-01-01",
-    "releaseDateTo": "2024-12-31"
-  },
-  "message": "I'll find some great movies for you!"
-}
-
-SPECIFICITY RULES (VERY IMPORTANT):
-- "specific": User explicitly mentions genres, actors, directors, years, or specific themes (e.g., "horror movies", "Tom Hanks movies", "sci-fi from the 80s")
-- "vague": User asks for general recommendations without specific criteria (e.g., "recommend me something", "what should I watch?", "suggest some movies", "I'm bored")
-- When in doubt, use "specific" to respect the user's explicit request
-
-YEAR/DATE RULES (VERY IMPORTANT):
-- For a SINGLE YEAR like "movies from 2025" or "2025 movies" → use "year": 2025 (as a number, not string)
-- For a DATE RANGE like "movies from 2020 to 2024" → use "releaseDateFrom": "2020-01-01", "releaseDateTo": "2024-12-31"
-- ALWAYS use full date format YYYY-MM-DD for releaseDateFrom and releaseDateTo
-- For "recent movies" or "new movies" → use "year": ${new Date().getFullYear()} or releaseDateFrom from last 2 years
-- For decades like "80s movies" → use "releaseDateFrom": "1980-01-01", "releaseDateTo": "1989-12-31"
-- If user says "movies of 2025", use "year": 2025, NOT releaseDateFrom/To
-
-When the user asks to FILTER or REFINE previous movie results (e.g., "filter by year 2020-2026", "only show movies from 2020", "show only high rated ones"), respond with:
-{
-  "type": "filter",
-  "filterCriteria": {
-    "year": 2020,
-    "releaseDateFrom": "2020-01-01",
-    "releaseDateTo": "2026-12-31",
-    "minRating": 8.0,
-    "genres": ["Action"],
-    "actors": ["Actor Name"]
-  },
-  "message": "Here are the filtered results!"
-}
-
-GENRE MAPPING RULES:
-- "sci-fi", "scifi", "science fiction", "science-fiction", "SF" → use "Science Fiction"
-- Use proper genre names: "Action", "Comedy", "Drama", "Horror", "Thriller", "Science Fiction", etc.
-
-RATING RULES:
-- "best rated", "top rated", "highest rated" → set minRating to 7.5 or higher
-- "highly rated" → set minRating to 7.0
-- "well rated" → set minRating to 6.5
-- If no rating mentioned, use 6.0 as default
-
-For general questions or clarifications (when NOT recommending or filtering movies), respond with:
-{
-  "type": "chat", 
-  "message": "Your response here"
-}
-
-Always respond with ONLY the JSON object, nothing else.`
-              },
+              { role: 'system', content: systemPrompt },
               ...conversationHistory,
-              { role: "user", content: body.message }
-            ]
+              { role: 'user', content: body.message },
+            ],
           });
 
           // Safely extract response as string
@@ -994,8 +945,8 @@ Always respond with ONLY the JSON object, nothing else.`
                 );
               }
               
-              // Store filtered results
-              movies = filteredMovies;
+              const filterLimit = inferResultLimit(body.message, filterCriteria.limit);
+              movies = filteredMovies.slice(0, filterLimit);
               parsedResponse.type = 'recommendation'; // Change to recommendation so frontend handles it
             } else if (shouldRecommend) {
               parsedResponse.type = 'recommendation';
@@ -1024,14 +975,19 @@ Always respond with ONLY the JSON object, nothing else.`
                 });
               }
 
-              // Apply user preferences intelligently based on specificity
-              const mergedCriteria = mergePreferencesWithCriteria(
-                parsedResponse.criteria,
-                userPreferences,
-                parsedResponse.specificity || 'specific' // Default to 'specific' to respect user's request
+              const mergedCriteria = applyResultLimitToCriteria(
+                attachExcludeIds(
+                  mergePreferencesWithCriteria(
+                    parsedResponse.criteria,
+                    userPreferences,
+                    parsedResponse.specificity || 'specific'
+                  ),
+                  shownMovieIds,
+                  parsedResponse.criteria?.excludeMovieIds
+                ),
+                body.message
               );
 
-              // Trigger movie search
               const agentId = env.MOVIE_RECOMMENDATION_AGENT.idFromName(auth.userId);
               const agent = env.MOVIE_RECOMMENDATION_AGENT.get(agentId);
               
@@ -1102,10 +1058,16 @@ Always respond with ONLY the JSON object, nothing else.`
                   };
                 } else {
                   // No clear filter, start new search with user preferences
-                  const fallbackCriteria = mergePreferencesWithCriteria(
-                    { genres: [], actors: [], directors: [], minRating: 6.0 },
-                    userPreferences,
-                    'vague' // Fallback is a vague query
+                  const fallbackCriteria = applyResultLimitToCriteria(
+                    attachExcludeIds(
+                      mergePreferencesWithCriteria(
+                        { genres: [], actors: [], directors: [], minRating: 6.0 },
+                        userPreferences,
+                        'vague'
+                      ),
+                      shownMovieIds
+                    ),
+                    body.message
                   );
                   
                   const agentId = env.MOVIE_RECOMMENDATION_AGENT.idFromName(auth.userId);
@@ -1124,11 +1086,16 @@ Always respond with ONLY the JSON object, nothing else.`
                   };
                 }
               } else {
-                // No previous movies, start new search with user preferences
-                const fallbackCriteria = mergePreferencesWithCriteria(
-                  { genres: [], actors: [], directors: [], minRating: 6.0 },
-                  userPreferences,
-                  'vague' // Fallback is a vague query
+                const fallbackCriteria = applyResultLimitToCriteria(
+                  attachExcludeIds(
+                    mergePreferencesWithCriteria(
+                      { genres: [], actors: [], directors: [], minRating: 6.0 },
+                      userPreferences,
+                      'vague'
+                    ),
+                    shownMovieIds
+                  ),
+                  body.message
                 );
                 
                 const agentId = env.MOVIE_RECOMMENDATION_AGENT.idFromName(auth.userId);
@@ -1196,18 +1163,24 @@ Always respond with ONLY the JSON object, nothing else.`
           `).bind(conversationId).run();
 
           // If we have filtered movies (no searchId), include them in response
+          const suggestedFollowUps = normalizeSuggestedFollowUps(parsedResponse.suggestedFollowUps);
+
           const responseData: any = {
             type: parsedResponse.type || 'chat',
             message: messageContent,
             conversationId,
             messageId: assistantMessageId,
+            suggestedFollowUps,
           };
+
+          if (parsedResponse.userIntentSummary) {
+            responseData.userIntentSummary = parsedResponse.userIntentSummary;
+          }
           
           if (searchId) {
             responseData.searchId = searchId;
           }
           
-          // If we have movies from filtering (not from search), include them directly
           if (movies && movies.length > 0 && !searchId) {
             responseData.movies = movies;
           }

@@ -71,9 +71,28 @@ export class MovieRecommendationAgent extends Agent<Env, MovieSearchState> {
   @callable()
   async getSearchResults(searchId: string): Promise<MovieResult[]> {
     try {
+      const searchRow = await this.env.MOVIE_DB.prepare(`
+        SELECT criteria FROM movie_searches WHERE search_id = ?
+      `).bind(searchId).first<{ criteria: string }>();
+
+      let resultLimit = 20;
+      if (searchRow?.criteria) {
+        try {
+          const parsed = JSON.parse(searchRow.criteria) as MovieCriteria;
+          if (parsed.limit && parsed.limit >= 1) {
+            resultLimit = Math.min(parsed.limit, 40);
+          }
+        } catch {
+          /* use default */
+        }
+      }
+
+      const applyLimit = (movies: MovieResult[]) =>
+        movies.slice(0, resultLimit);
+
       // Get results from cache
       const results = await this.getCachedResults(searchId);
-      if (results) return results;
+      if (results) return applyLimit(results);
       
       // Get from database
       const dbResults = await this.env.MOVIE_DB.prepare(`
@@ -84,7 +103,7 @@ export class MovieRecommendationAgent extends Agent<Env, MovieSearchState> {
       `).bind(searchId).first<{ movie_data: string }>();
       
       if (dbResults) {
-        return JSON.parse(dbResults.movie_data) as MovieResult[];
+        return applyLimit(JSON.parse(dbResults.movie_data) as MovieResult[]);
       }
       
       return [];
@@ -214,6 +233,8 @@ export class MovieRecommendationAgent extends Agent<Env, MovieSearchState> {
       dateFrom: criteria.releaseDateFrom,
       dateTo: criteria.releaseDateTo,
       minRating: criteria.minRating,
+      year: criteria.year,
+      limit: criteria.limit ?? 20,
     });
   }
   

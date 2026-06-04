@@ -7,6 +7,7 @@ interface ChatContextType {
   messages: ChatMessage[];
   isLoading: boolean;
   currentConversationId: string | null;
+  suggestedFollowUps: string[];
   sendMessage: (content: string) => Promise<void>;
   loadConversation: (conversationId: string) => Promise<void>;
   startNewConversation: () => void;
@@ -19,6 +20,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [suggestedFollowUps, setSuggestedFollowUps] = useState<string[]>([]);
   const queryClient = useQueryClient();
   const activePolls = useRef<Set<string>>(new Set());
 
@@ -49,14 +51,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // Check if movies are already included (from filtering)
       const hasDirectMovies = (response as any).movies && (response as any).movies.length > 0;
       
+      const followUps = response.suggestedFollowUps?.length
+        ? response.suggestedFollowUps
+        : [];
+      setSuggestedFollowUps(followUps);
+
       const assistantMessage: ChatMessage = {
         id: assistantMessageId,
         role: 'assistant',
         content: response.message,
         timestamp: new Date(),
         searchId: response.searchId,
-        movies: hasDirectMovies ? (response as any).movies : undefined,
+        movies: hasDirectMovies ? response.movies : undefined,
         isLoadingMovies: response.type === 'recommendation' && !!response.searchId && !hasDirectMovies,
+        suggestedFollowUps: followUps.length > 0 ? followUps : undefined,
       };
       setMessages(prev => [...prev, assistantMessage]);
       
@@ -195,6 +203,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }));
       
       setMessages(loadedMessages);
+      setSuggestedFollowUps([]);
     } catch (error) {
       console.error('Failed to load conversation:', error);
     } finally {
@@ -205,11 +214,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const startNewConversation = useCallback(() => {
     setCurrentConversationId(null);
     setMessages([]);
+    setSuggestedFollowUps([]);
   }, []);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
     setCurrentConversationId(null);
+    setSuggestedFollowUps([]);
   }, []);
 
   return (
@@ -218,6 +229,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         messages,
         isLoading,
         currentConversationId,
+        suggestedFollowUps,
         sendMessage,
         loadConversation,
         startNewConversation,
