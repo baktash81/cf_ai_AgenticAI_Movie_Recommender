@@ -301,15 +301,18 @@ export interface CuratedCollection {
   title: string;
   description?: string;
   cover_image_url?: string;
+  coverUrl?: string;
   collection_type: CollectionType;
   movies: Movie[];
+  movieCount?: number;
+  previewPosters?: string[];
   is_active: boolean;
   display_order: number;
   season?: string;
   isSaved?: boolean;
   isCurrentSeason?: boolean;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface PersonDetails {

@@ -26,6 +26,11 @@ import {
 import { cachedJsonResponse } from './utils/cache';
 import type { MovieCriteria } from './types/movie';
 import { getTasteProfilePayload, maybeSyncTasteToPreferences } from './utils/taste-sync';
+import {
+  hydrateCollectionMovies,
+  hydrateCollectionsBatch,
+  formatCollectionForApi,
+} from './utils/collection-hydrate';
 
 // Export Workflows and Agents (Durable Objects) for Cloudflare Workers
 export { MovieSearchWorkflow };
@@ -2047,15 +2052,22 @@ Always respond with ONLY the JSON object, nothing else.`
           else if (month >= 1 && month <= 2) currentSeason = 'valentine';
           else if (month >= 5 && month <= 7) currentSeason = 'summer';
 
-          const result = collections.results.map((c: any) => ({
-            ...c,
-            movies: JSON.parse(c.movies || '[]'),
-            criteria: c.criteria ? JSON.parse(c.criteria) : null,
-            isSaved: savedIds.has(c.collection_id),
-            isCurrentSeason: c.season === currentSeason
-          }));
+          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+          const rows = collections.results as any[];
 
-          // Separate into categories
+          const movieMap = await hydrateCollectionsBatch(env, tmdb, rows, 4);
+
+          const result = rows
+            .map((c: any) => {
+              const movies = movieMap.get(c.collection_id) || [];
+              return formatCollectionForApi(c, movies, {
+                isSaved: savedIds.has(c.collection_id),
+                isCurrentSeason: c.season === currentSeason,
+              });
+            })
+            .filter((c: any) => c.movieCount > 0);
+
           const seasonal = result.filter((c: any) => c.collection_type === 'seasonal');
           const regular = result.filter((c: any) => c.collection_type !== 'seasonal');
           const saved = result.filter((c: any) => c.isSaved);
@@ -2089,29 +2101,18 @@ Always respond with ONLY the JSON object, nothing else.`
             );
           }
 
-          // If collection has criteria but no movies, fetch them
-          let movies = JSON.parse((collection as any).movies || '[]');
-          if (movies.length === 0 && (collection as any).criteria) {
-            const criteria = JSON.parse((collection as any).criteria);
-            // Use TMDB to fetch movies based on criteria
-            const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
-            const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
-            movies = await tmdb.searchMovies(criteria);
-            
-            // Cache the results
-            await env.MOVIE_DB.prepare(`
-              UPDATE curated_collections SET movies = ?, updated_at = datetime('now') WHERE collection_id = ?
-            `).bind(JSON.stringify(movies), collectionId).run();
-          }
+          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+          const movies = await hydrateCollectionMovies(tmdb, collection as any, {
+            limit: 20,
+            persist: true,
+            env,
+          });
+
+          const formatted = formatCollectionForApi(collection as any, movies);
 
           return new Response(
-            JSON.stringify({ 
-              collection: {
-                ...(collection as any),
-                movies,
-                criteria: (collection as any).criteria ? JSON.parse((collection as any).criteria) : null
-              }
-            }),
+            JSON.stringify({ collection: formatted }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         } catch (error) {
@@ -2493,7 +2494,11 @@ Always respond with ONLY the JSON object, nothing else.`
             });
 
             for (const collection of seasonal.results) {
-              const movies = JSON.parse((collection as any).movies || '[]');
+              const movies = await hydrateCollectionMovies(tmdb, collection as any, {
+                limit: 10,
+                persist: true,
+                env,
+              });
               if (movies.length > 0) {
                 sections.push({
                   id: (collection as any).collection_id,
@@ -2536,14 +2541,11 @@ Always respond with ONLY the JSON object, nothing else.`
             // Fetch empty collections in parallel (was sequential — major latency source)
             const genreSections = await Promise.all(
               genreCollections.results.map(async (collection) => {
-                let movies = JSON.parse((collection as any).movies || '[]');
-                if (movies.length === 0 && (collection as any).criteria) {
-                  const criteria = JSON.parse((collection as any).criteria);
-                  movies = await tmdb.searchMovies(
-                    { ...criteria, limit: 10 },
-                    { enrichDetails: false }
-                  );
-                }
+                const movies = await hydrateCollectionMovies(tmdb, collection as any, {
+                  limit: 10,
+                  persist: true,
+                  env,
+                });
                 if (movies.length === 0) return null;
                 return {
                   id: (collection as any).collection_id,
