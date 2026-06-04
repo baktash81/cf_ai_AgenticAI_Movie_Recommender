@@ -229,7 +229,7 @@ function CollectionMovies({ collection, onBack }: CollectionMoviesProps) {
       ) : (
         <div className="grid-movie-cards">
           {movies.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} />
+            <MovieCard key={movie.id} movie={movie} variant="grid" />
           ))}
         </div>
       )}

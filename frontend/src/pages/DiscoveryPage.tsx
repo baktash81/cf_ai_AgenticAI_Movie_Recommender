@@ -177,7 +177,7 @@ function DiscoverySectionComponent({ section }: DiscoverySectionProps) {
 
       <div className="grid-movie-cards">
         {(section.items as Movie[]).slice(0, 10).map((movie) => (
-          <MovieCard key={movie.id} movie={movie} />
+          <MovieCard key={movie.id} movie={movie} variant="grid" />
         ))}
       </div>
     </section>
@@ -247,7 +247,7 @@ function CollectionDetail({ collection, onBack }: CollectionDetailProps) {
       ) : (
         <div className="grid-movie-cards">
           {movies.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} />
+            <MovieCard key={movie.id} movie={movie} variant="grid" />
           ))}
         </div>
       )}

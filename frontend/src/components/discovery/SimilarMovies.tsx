@@ -65,7 +65,7 @@ export default function SimilarMoviesModal({ movie, isOpen, onClose }: Props) {
             ) : data?.similarMovies && data.similarMovies.length > 0 ? (
               <div className="grid-movie-cards">
                 {data.similarMovies.map((similarMovie) => (
-                  <MovieCard key={similarMovie.id} movie={similarMovie} />
+                  <MovieCard key={similarMovie.id} movie={similarMovie} variant="grid" />
                 ))}
               </div>
             ) : (

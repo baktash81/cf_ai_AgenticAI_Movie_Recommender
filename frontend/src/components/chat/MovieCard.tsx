@@ -14,10 +14,23 @@ interface Props {
   movie: Movie;
   showFeedback?: boolean;
   compact?: boolean;
+  /** Compact layout for discovery/collection grids (narrow columns) */
+  variant?: 'default' | 'grid';
   onFeedbackChange?: (movieId: string, feedback: FeedbackType) => void;
 }
 
-export default function MovieCard({ movie, showFeedback = true, compact = false, onFeedbackChange }: Props) {
+function getTmdbMovieUrl(movieId: string): string {
+  const numericId = movieId.replace(/\D/g, '') || movieId;
+  return `https://www.themoviedb.org/movie/${numericId}`;
+}
+
+export default function MovieCard({
+  movie,
+  showFeedback = true,
+  compact = false,
+  variant = 'default',
+  onFeedbackChange,
+}: Props) {
   const { watchlist, addToWatchlist, removeFromWatchlist, isAddingToWatchlist } = useWatchlist();
   const [imageError, setImageError] = useState(false);
   const [currentFeedback, setCurrentFeedback] = useState<FeedbackType | null>(null);
@@ -72,11 +85,59 @@ export default function MovieCard({ movie, showFeedback = true, compact = false,
   const placeholderImage = `https://via.placeholder.com/300x450?text=${encodeURIComponent(movie.title)}`;
 
   const feedbackButtons = [
-    { type: 'love' as FeedbackType, icon: Heart, activeColor: 'text-red-500 fill-red-500' },
-    { type: 'like' as FeedbackType, icon: ThumbsUp, activeColor: 'text-green-500' },
-    { type: 'dislike' as FeedbackType, icon: ThumbsDown, activeColor: 'text-orange-500' },
-    { type: 'not_interested' as FeedbackType, icon: X, activeColor: 'text-gray-500' },
+    { type: 'love' as FeedbackType, icon: Heart, label: 'Love', activeColor: 'text-red-500 fill-red-500' },
+    { type: 'like' as FeedbackType, icon: ThumbsUp, label: 'Like', activeColor: 'text-green-500' },
+    { type: 'dislike' as FeedbackType, icon: ThumbsDown, label: 'Dislike', activeColor: 'text-orange-500' },
+    { type: 'not_interested' as FeedbackType, icon: X, label: 'Skip', activeColor: 'text-gray-500' },
   ];
+
+  const isGridVariant = variant === 'grid';
+  const tmdbUrl = getTmdbMovieUrl(movie.id);
+
+  const renderFeedbackRow = (dense: boolean) => (
+    <div
+      className={
+        dense
+          ? 'grid grid-cols-4 gap-1 w-full'
+          : 'grid grid-cols-4 gap-1.5 w-full max-w-[220px]'
+      }
+    >
+      {feedbackButtons.map(({ type, icon: Icon, label, activeColor }) => (
+        <button
+          key={type}
+          type="button"
+          onClick={() => handleFeedback(type)}
+          disabled={isSubmittingFeedback}
+          title={label}
+          aria-label={label}
+          className={`flex items-center justify-center rounded-lg transition-all ${
+            dense ? 'h-8 w-full' : 'h-9 w-full'
+          } ${
+            currentFeedback === type
+              ? `bg-gray-100 dark:bg-gray-700 ${activeColor}`
+              : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+          } ${isSubmittingFeedback ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          <Icon className={dense ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
+        </button>
+      ))}
+    </div>
+  );
+
+  const renderTmdbLink = (dense: boolean) => (
+    <a
+      href={tmdbUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="View on TMDB"
+      className={`flex items-center justify-center gap-1 rounded-lg font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors ${
+        dense ? 'w-full py-1.5 text-xs' : 'w-full py-2 text-sm'
+      }`}
+    >
+      TMDB
+      <ExternalLink className={dense ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
+    </a>
+  );
 
   if (compact) {
     return (
@@ -100,6 +161,108 @@ export default function MovieCard({ movie, showFeedback = true, compact = false,
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (isGridVariant) {
+    return (
+      <>
+        <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow group">
+          <div className="relative aspect-[2/3] bg-gray-200 dark:bg-gray-700 flex-shrink-0">
+            <img
+              src={imageError || !movie.posterUrl ? placeholderImage : movie.posterUrl}
+              alt={movie.title}
+              className="w-full h-full object-cover"
+              onError={() => setImageError(true)}
+              loading="lazy"
+            />
+            <div className="absolute top-1.5 left-1.5 flex items-center gap-0.5 bg-black/75 text-white px-1.5 py-0.5 rounded text-xs font-medium z-10">
+              <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
+              {movie.rating.toFixed(1)}
+            </div>
+            <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
+              <button
+                type="button"
+                onClick={handleWatchlistToggle}
+                disabled={isAddingToWatchlist}
+                className={`p-1.5 rounded-full ${
+                  isInWatchlist ? 'bg-primary-600 text-white' : 'bg-white/90 text-gray-700 hover:bg-white'
+                }`}
+                title={isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
+              >
+                {isInWatchlist ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="p-1.5 rounded-full bg-white/90 text-gray-700 hover:bg-white"
+                  aria-label="More actions"
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </button>
+                {showMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                    <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+                      <button
+                        type="button"
+                        onClick={() => { setShowSimilar(true); setShowMenu(false); }}
+                        className="w-full px-3 py-2 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <Film className="h-3.5 w-3.5" />
+                        More Like This
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowShare(true); setShowMenu(false); }}
+                        className="w-full px-3 py-2 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <Share2 className="h-3.5 w-3.5" />
+                        Share
+                      </button>
+                      <a
+                        href={tmdbUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setShowMenu(false)}
+                        className="w-full px-3 py-2 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        TMDB
+                      </a>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col flex-1 p-2.5 min-w-0">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white line-clamp-2 leading-snug" title={movie.title}>
+              {movie.title}
+            </h3>
+            {year && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{year}</p>
+            )}
+
+            {showFeedback && (
+              <div className="mt-auto pt-2 space-y-1.5 border-t border-gray-200 dark:border-gray-700">
+                {renderFeedbackRow(true)}
+                {renderTmdbLink(true)}
+              </div>
+            )}
+            {!showFeedback && (
+              <div className="mt-auto pt-2 border-t border-gray-200 dark:border-gray-700">
+                {renderTmdbLink(true)}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <SimilarMoviesModal movie={movie} isOpen={showSimilar} onClose={() => setShowSimilar(false)} />
+        <CreateShareModal movies={[movie]} isOpen={showShare} onClose={() => setShowShare(false)} />
+      </>
     );
   }
 
@@ -234,39 +397,10 @@ export default function MovieCard({ movie, showFeedback = true, compact = false,
             </p>
           )}
 
-          {/* Feedback buttons */}
-          {showFeedback && (
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-1 justify-center sm:justify-start">
-                {feedbackButtons.map(({ type, icon: Icon, activeColor }) => (
-                  <button
-                    key={type}
-                    onClick={() => handleFeedback(type)}
-                    disabled={isSubmittingFeedback}
-                    className={`p-1.5 rounded-full transition-all ${
-                      currentFeedback === type
-                        ? `bg-gray-100 dark:bg-gray-700 ${activeColor}`
-                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                    title={type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ')}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </button>
-                ))}
-              </div>
-              
-              {/* TMDB Link */}
-              <a
-                href={`https://www.themoviedb.org/movie/${movie.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
-              >
-                TMDB
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          )}
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
+            {showFeedback && renderFeedbackRow(false)}
+            {renderTmdbLink(false)}
+          </div>
 
           {/* Watch Providers Loading */}
           {isLoadingProviders && (
