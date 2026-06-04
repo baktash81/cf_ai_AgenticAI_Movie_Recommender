@@ -2363,9 +2363,13 @@ Always respond with ONLY the JSON object, nothing else.`
           const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
 
           const genresParam = url.searchParams.get('genres');
+          const excludeParam = url.searchParams.get('excludeGenres');
+          const genreMatchParam = url.searchParams.get('genreMatch');
           const criteria = {
             query: url.searchParams.get('q') || undefined,
             genres: genresParam ? genresParam.split(',').filter(Boolean) : undefined,
+            excludeGenres: excludeParam ? excludeParam.split(',').filter(Boolean) : undefined,
+            genreMatch: genreMatchParam === 'all' ? 'all' as const : 'any' as const,
             year: url.searchParams.get('year')
               ? parseInt(url.searchParams.get('year')!, 10)
               : undefined,
@@ -2373,6 +2377,9 @@ Always respond with ONLY the JSON object, nothing else.`
             releaseDateTo: url.searchParams.get('yearTo') || undefined,
             minRating: url.searchParams.get('minRating')
               ? parseFloat(url.searchParams.get('minRating')!)
+              : undefined,
+            maxRating: url.searchParams.get('maxRating')
+              ? parseFloat(url.searchParams.get('maxRating')!)
               : undefined,
             minVoteCount: url.searchParams.get('minVotes')
               ? parseInt(url.searchParams.get('minVotes')!, 10)

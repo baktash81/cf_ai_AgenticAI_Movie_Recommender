@@ -69,10 +69,13 @@ export interface MovieDetail extends Movie {
 export interface MovieBrowseParams {
   q?: string;
   genres?: string;
+  excludeGenres?: string;
+  genreMatch?: 'any' | 'all';
   year?: number;
   yearFrom?: string;
   yearTo?: string;
   minRating?: number;
+  maxRating?: number;
   minVotes?: number;
   language?: string;
   runtimeMin?: number;

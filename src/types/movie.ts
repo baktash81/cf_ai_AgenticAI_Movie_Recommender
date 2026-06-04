@@ -35,6 +35,10 @@ export interface MovieCriteria {
   // Content safety
   includeAdult?: boolean; // Whether to include adult content (default: false)
   
+  /** Comma-separated genre names; use genreMatch for AND vs OR */
+  genreMatch?: 'any' | 'all';
+  maxRating?: number;
+
   // Pagination
   page?: number;
   limit?: number; // Results per page (max 20 for TMDB)

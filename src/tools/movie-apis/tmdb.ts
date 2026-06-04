@@ -159,7 +159,8 @@ export class TMDBAPI {
     if (criteria.genres && criteria.genres.length > 0) {
       const genreIds = this.mapGenreNamesToIds(criteria.genres);
       if (genreIds.length > 0) {
-        url.searchParams.append('with_genres', genreIds.join(','));
+        const separator = criteria.genreMatch === 'all' ? ',' : '|';
+        url.searchParams.append('with_genres', genreIds.join(separator));
       }
     }
     
@@ -174,6 +175,9 @@ export class TMDBAPI {
     // Rating
     if (criteria.minRating !== undefined) {
       url.searchParams.append('vote_average.gte', criteria.minRating.toString());
+    }
+    if (criteria.maxRating !== undefined) {
+      url.searchParams.append('vote_average.lte', criteria.maxRating.toString());
     }
     if (criteria.minVoteCount !== undefined) {
       url.searchParams.append('vote_count.gte', criteria.minVoteCount.toString());

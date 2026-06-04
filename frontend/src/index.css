@@ -90,4 +90,8 @@ body {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  .browse-filters-panel {
+    @apply rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/50 p-3 shadow-sm;
+  }
 }
