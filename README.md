@@ -318,6 +318,10 @@ JWT_SECRET=your_jwt_secret
 VITE_API_URL=https://your-worker.workers.dev
 ```
 
+## Testing
+
+See [docs/COMPREHENSIVE_TEST_PLAN.md](docs/COMPREHENSIVE_TEST_PLAN.md) for the full manual QA checklist (infrastructure, API, UI, E2E journeys, and pre-release regression).
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
