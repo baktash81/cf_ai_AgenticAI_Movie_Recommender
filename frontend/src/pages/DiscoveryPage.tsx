@@ -13,26 +13,18 @@ import type { Movie, CuratedCollection, DiscoverySection } from '../types';
 export default function DiscoveryPage() {
   const [selectedCollection, setSelectedCollection] = useState<CuratedCollection | null>(null);
 
-  const { data: discoveryData, isLoading: isLoadingDiscovery, refetch } = useQuery({
+  const { data: discoveryData, isLoading: isLoadingDiscovery, isFetching, refetch } = useQuery({
     queryKey: ['discovery'],
     queryFn: discoveryApi.get,
+    staleTime: 1000 * 60 * 5,
   });
 
-  const { data: collectionsData, isLoading: isLoadingCollections } = useQuery({
+  // Saved collections only — loaded after main content (non-blocking)
+  const { data: collectionsData } = useQuery({
     queryKey: ['collections'],
     queryFn: () => collectionsApi.list(),
+    staleTime: 1000 * 60 * 5,
   });
-
-  const isLoading = isLoadingDiscovery || isLoadingCollections;
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 text-primary-500 animate-spin mb-4" />
-        <p className="text-gray-500 dark:text-gray-400">Loading discoveries...</p>
-      </div>
-    );
-  }
 
   // If a collection is selected, show it in detail
   if (selectedCollection) {
@@ -59,65 +51,29 @@ export default function DiscoveryPage() {
         </div>
         <button
           onClick={() => refetch()}
-          className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+          disabled={isFetching}
+          className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
           title="Refresh"
         >
-          <RefreshCw className="h-5 w-5" />
+          <RefreshCw className={`h-5 w-5 ${isFetching ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main content */}
         <div className="lg:col-span-2 space-y-10">
-          {/* Discovery sections */}
-          {discoveryData?.sections.map((section) => (
-            <DiscoverySectionComponent 
-              key={section.id} 
-              section={section}
-            />
-          ))}
-
-          {/* Seasonal Collections */}
-          {collectionsData?.seasonal && collectionsData.seasonal.length > 0 && (
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-primary-500" />
-                  Seasonal Picks
-                </h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {collectionsData.seasonal.map((collection) => (
-                  <CollectionCard
-                    key={collection.collection_id}
-                    collection={collection}
-                    onSelect={setSelectedCollection}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Genre Collections */}
-          {collectionsData?.collections && collectionsData.collections.length > 0 && (
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <Film className="h-5 w-5 text-primary-500" />
-                  Browse by Collection
-                </h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {collectionsData.collections.slice(0, 6).map((collection) => (
-                  <CollectionCard
-                    key={collection.collection_id}
-                    collection={collection}
-                    onSelect={setSelectedCollection}
-                    compact
-                  />
-                ))}
-              </div>
-            </section>
+          {isLoadingDiscovery && !discoveryData ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 text-primary-500 animate-spin mb-4" />
+              <p className="text-gray-500 dark:text-gray-400">Loading discoveries...</p>
+            </div>
+          ) : (
+            discoveryData?.sections.map((section) => (
+              <DiscoverySectionComponent
+                key={section.id}
+                section={section}
+              />
+            ))
           )}
         </div>
 

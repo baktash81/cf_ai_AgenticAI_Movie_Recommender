@@ -23,23 +23,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing session on mount
+  // Restore session without blocking UI when no stored tokens
   useEffect(() => {
-    const initAuth = async () => {
-      const tokens = getStoredTokens();
-      if (tokens?.accessToken) {
-        try {
-          const userData = await authApi.getMe();
-          setUser(userData);
-        } catch (error) {
-          console.error('Failed to restore session:', error);
-          clearStoredTokens();
-        }
-      }
+    const tokens = getStoredTokens();
+    if (!tokens?.accessToken) {
       setIsLoading(false);
-    };
+      return;
+    }
 
-    initAuth();
+    authApi
+      .getMe()
+      .then((userData) => setUser(userData))
+      .catch((error) => {
+        console.error('Failed to restore session:', error);
+        clearStoredTokens();
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const handleAuthResponse = useCallback((response: AuthResponse) => {

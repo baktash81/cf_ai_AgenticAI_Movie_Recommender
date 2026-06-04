@@ -1,28 +1,31 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import Layout from './components/layout/Layout'
-import LoginPage from './pages/LoginPage'
-import SignupPage from './pages/SignupPage'
-import ProfilePage from './pages/ProfilePage'
-import ChatPage from './pages/ChatPage'
-import HomePage from './pages/HomePage'
-import WatchlistPage from './pages/WatchlistPage'
-import DiscoveryPage from './pages/DiscoveryPage'
-import CollectionsPage from './pages/CollectionsPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
-function App() {
-  const { isAuthenticated, isLoading } = useAuth()
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const SignupPage = lazy(() => import('./pages/SignupPage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const ChatPage = lazy(() => import('./pages/ChatPage'))
+const HomePage = lazy(() => import('./pages/HomePage'))
+const WatchlistPage = lazy(() => import('./pages/WatchlistPage'))
+const DiscoveryPage = lazy(() => import('./pages/DiscoveryPage'))
+const CollectionsPage = lazy(() => import('./pages/CollectionsPage'))
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
-      </div>
-    )
-  }
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[40vh]">
+      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary-600" />
+    </div>
+  )
+}
+
+function App() {
+  const { isAuthenticated } = useAuth()
 
   return (
+    <Suspense fallback={<PageLoader />}>
     <Routes>
       {/* Public routes */}
       <Route path="/login" element={
@@ -47,6 +50,7 @@ function App() {
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   )
 }
 

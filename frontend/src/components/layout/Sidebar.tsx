@@ -9,9 +9,10 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ onSelectConversation, onNewChat, currentConversationId }: SidebarProps) {
-  const { conversations, deleteConversation, isDeleting } = useConversations();
   const navigate = useNavigate();
   const location = useLocation();
+  const isChatRoute = location.pathname === '/chat';
+  const { conversations, deleteConversation, isDeleting } = useConversations(isChatRoute);
 
   const handleNewChat = () => {
     if (onNewChat) {

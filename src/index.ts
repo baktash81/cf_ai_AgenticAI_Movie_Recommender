@@ -23,6 +23,7 @@ import {
   isValidPassword,
   authenticateRequest,
 } from './utils/auth';
+import { cachedJsonResponse } from './utils/cache';
 
 // Export Workflows and Agents (Durable Objects) for Cloudflare Workers
 export { MovieSearchWorkflow };
@@ -32,7 +33,7 @@ export { MovieRecommendationAgent, MoviePreferenceAnalysisAgent };
 const DEFAULT_JWT_SECRET = 'dev-secret-change-in-production';
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method;
@@ -2263,16 +2264,18 @@ Always respond with ONLY the JSON object, nothing else.`
         try {
           const timeWindow = (url.searchParams.get('timeWindow') || 'week') as 'day' | 'week';
           const limit = parseInt(url.searchParams.get('limit') || '20');
+          const enrich = url.searchParams.get('enrich') === 'true';
 
-          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
-          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
-          
-          const movies = await tmdb.getTrending(timeWindow, limit);
+          return cachedJsonResponse(request, 300, async () => {
+            const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+            const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+            const movies = await tmdb.getTrending(timeWindow, limit, enrich);
 
-          return new Response(
-            JSON.stringify({ movies, timeWindow }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+            return new Response(
+              JSON.stringify({ movies, timeWindow }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          });
         } catch (error) {
           return new Response(
             JSON.stringify({ error: 'Failed to get trending movies' }),
@@ -2373,50 +2376,57 @@ Always respond with ONLY the JSON object, nothing else.`
         const auth = await authenticateRequest(request, jwtSecret);
         
         try {
-          const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
-          const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
+          const buildDiscovery = async () => {
+            const { TMDBAPI } = await import('./tools/movie-apis/tmdb');
+            const tmdb = new TMDBAPI(env.TMDB_API_KEY || '');
 
-          const sections: any[] = [];
+            const sections: any[] = [];
 
-          // Trending section
-          const trending = await tmdb.getTrending('week', 10);
-          sections.push({
-            id: 'trending',
-            title: 'Trending This Week',
-            type: 'trending',
-            items: trending
-          });
+            // Trending + DB queries in parallel (fast path: no per-movie TMDB enrichment)
+            const [trending, seasonal, genreCollections, profile] = await Promise.all([
+              tmdb.getTrending('week', 10, false),
+              env.MOVIE_DB.prepare(`
+                SELECT * FROM curated_collections 
+                WHERE collection_type = 'seasonal' AND is_active = TRUE
+                AND (valid_from IS NULL OR valid_from <= date('now'))
+                AND (valid_until IS NULL OR valid_until >= date('now'))
+                ORDER BY display_order ASC
+                LIMIT 2
+              `).all(),
+              env.MOVIE_DB.prepare(`
+                SELECT * FROM curated_collections 
+                WHERE collection_type IN ('genre', 'decade') AND is_active = TRUE
+                ORDER BY display_order ASC
+                LIMIT 3
+              `).all(),
+              auth
+                ? env.MOVIE_DB.prepare(
+                    'SELECT * FROM user_taste_profiles WHERE user_id = ?'
+                  ).bind(auth.userId).first()
+                : Promise.resolve(null),
+            ]);
 
-          // Get active seasonal collections
-          const seasonal = await env.MOVIE_DB.prepare(`
-            SELECT * FROM curated_collections 
-            WHERE collection_type = 'seasonal' AND is_active = TRUE
-            AND (valid_from IS NULL OR valid_from <= date('now'))
-            AND (valid_until IS NULL OR valid_until >= date('now'))
-            ORDER BY display_order ASC
-            LIMIT 2
-          `).all();
+            sections.push({
+              id: 'trending',
+              title: 'Trending This Week',
+              type: 'trending',
+              items: trending,
+            });
 
-          for (const collection of seasonal.results) {
-            const movies = JSON.parse((collection as any).movies || '[]');
-            if (movies.length > 0) {
-              sections.push({
-                id: (collection as any).collection_id,
-                title: (collection as any).title,
-                subtitle: (collection as any).description,
-                type: 'collection',
-                items: movies.slice(0, 10)
-              });
+            for (const collection of seasonal.results) {
+              const movies = JSON.parse((collection as any).movies || '[]');
+              if (movies.length > 0) {
+                sections.push({
+                  id: (collection as any).collection_id,
+                  title: (collection as any).title,
+                  subtitle: (collection as any).description,
+                  type: 'collection',
+                  items: movies.slice(0, 10),
+                });
+              }
             }
-          }
 
-          // Personalized picks if authenticated
-          let personalizedPicks: any[] = [];
-          if (auth) {
-            const profile = await env.MOVIE_DB.prepare(`
-              SELECT * FROM user_taste_profiles WHERE user_id = ?
-            `).bind(auth.userId).first();
-
+            const personalizedPicks: any[] = [];
             if (profile && (profile as any).profile_strength > 0.3) {
               const genreScores = JSON.parse((profile as any).genre_scores || '{}');
               const topGenres = Object.entries(genreScores)
@@ -2425,55 +2435,59 @@ Always respond with ONLY the JSON object, nothing else.`
                 .map(([genre]) => genre);
 
               if (topGenres.length > 0) {
-                const personalizedMovies = await tmdb.searchMovies({
-                  genres: topGenres,
-                  minRating: (profile as any).avg_rating_preference || 7.0,
-                  limit: 10
-                });
+                const personalizedMovies = await tmdb.searchMovies(
+                  {
+                    genres: topGenres,
+                    minRating: (profile as any).avg_rating_preference || 7.0,
+                    limit: 10,
+                  },
+                  { enrichDetails: false }
+                );
 
                 sections.push({
                   id: 'personalized',
                   title: 'Picked For You',
                   subtitle: `Based on your love for ${topGenres.join(' and ')}`,
                   type: 'personalized',
-                  items: personalizedMovies
+                  items: personalizedMovies,
                 });
               }
             }
+
+            // Fetch empty collections in parallel (was sequential — major latency source)
+            const genreSections = await Promise.all(
+              genreCollections.results.map(async (collection) => {
+                let movies = JSON.parse((collection as any).movies || '[]');
+                if (movies.length === 0 && (collection as any).criteria) {
+                  const criteria = JSON.parse((collection as any).criteria);
+                  movies = await tmdb.searchMovies(
+                    { ...criteria, limit: 10 },
+                    { enrichDetails: false }
+                  );
+                }
+                if (movies.length === 0) return null;
+                return {
+                  id: (collection as any).collection_id,
+                  title: (collection as any).title,
+                  subtitle: (collection as any).description,
+                  type: 'collection',
+                  items: movies.slice(0, 10),
+                };
+              })
+            );
+            sections.push(...genreSections.filter(Boolean));
+
+            return new Response(
+              JSON.stringify({ sections, personalizedPicks }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          };
+
+          // Skip edge cache when personalized (auth); anonymous discovery is cacheable
+          if (auth) {
+            return buildDiscovery();
           }
-
-          // Genre-based collections
-          const genreCollections = await env.MOVIE_DB.prepare(`
-            SELECT * FROM curated_collections 
-            WHERE collection_type IN ('genre', 'decade') AND is_active = TRUE
-            ORDER BY display_order ASC
-            LIMIT 3
-          `).all();
-
-          for (const collection of genreCollections.results) {
-            let movies = JSON.parse((collection as any).movies || '[]');
-            
-            // Fetch movies if empty
-            if (movies.length === 0 && (collection as any).criteria) {
-              const criteria = JSON.parse((collection as any).criteria);
-              movies = await tmdb.searchMovies({ ...criteria, limit: 10 });
-            }
-
-            if (movies.length > 0) {
-              sections.push({
-                id: (collection as any).collection_id,
-                title: (collection as any).title,
-                subtitle: (collection as any).description,
-                type: 'collection',
-                items: movies.slice(0, 10)
-              });
-            }
-          }
-
-          return new Response(
-            JSON.stringify({ sections, personalizedPicks }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return cachedJsonResponse(request, 300, buildDiscovery);
         } catch (error) {
           console.error('Discovery error:', error);
           return new Response(

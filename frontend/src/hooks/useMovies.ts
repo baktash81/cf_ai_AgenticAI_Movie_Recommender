@@ -117,12 +117,14 @@ export function usePreferences() {
 // This hook is kept for backward compatibility but should not be used
 // Use useChatContext from '../../context/ChatContext' instead
 
-export function useConversations() {
+export function useConversations(enabled = true) {
   const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['conversations'],
     queryFn: conversationsApi.list,
+    enabled,
+    staleTime: 1000 * 60 * 2,
   });
 
   const deleteMutation = useMutation({

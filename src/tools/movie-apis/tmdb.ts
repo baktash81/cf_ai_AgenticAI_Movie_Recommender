@@ -54,9 +54,49 @@ export class TMDBAPI {
   }
 
   /**
+   * Map TMDB list result to MovieResult without extra API calls (fast path for browse/discovery)
+   */
+  mapBasicMovie(movie: TMDBMovie): MovieResult {
+    const genreNames = (movie.genre_ids || [])
+      .map((id) => this.genreIdToName(id))
+      .filter(Boolean) as string[];
+
+    return {
+      id: movie.id.toString(),
+      title: movie.title,
+      originalTitle: movie.original_title,
+      overview: movie.overview || '',
+      releaseDate: movie.release_date,
+      genres: genreNames,
+      actors: [],
+      rating: movie.vote_average,
+      voteCount: movie.vote_count,
+      popularity: movie.popularity,
+      posterUrl: movie.poster_path ? `${this.imageBaseUrl}${movie.poster_path}` : undefined,
+      backdropUrl: movie.backdrop_path ? `${this.imageBaseUrl}${movie.backdrop_path}` : undefined,
+      language: movie.original_language,
+      adult: movie.adult,
+    };
+  }
+
+  private genreIdToName(id: number): string | undefined {
+    const map: Record<number, string> = {
+      28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
+      99: 'Documentary', 18: 'Drama', 10751: 'Family', 14: 'Fantasy', 36: 'History',
+      27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance', 878: 'Science Fiction',
+      10770: 'TV Movie', 53: 'Thriller', 10752: 'War', 37: 'Western',
+    };
+    return map[id];
+  }
+
+  /**
    * Search for movies based on criteria
    */
-  async searchMovies(criteria: MovieCriteria): Promise<MovieResult[]> {
+  async searchMovies(
+    criteria: MovieCriteria,
+    options: { enrichDetails?: boolean } = {}
+  ): Promise<MovieResult[]> {
+    const enrichDetails = options.enrichDetails ?? true;
     try {
       // Build search/discover URL based on criteria
       const url = this.buildSearchUrl(criteria);
@@ -74,12 +114,14 @@ export class TMDBAPI {
       }
 
       const data: TMDBResponse = await response.json();
-      
-      // Fetch additional details for each movie (cast, director, etc.)
+      const slice = data.results.slice(0, criteria.limit || 20);
+
+      if (!enrichDetails) {
+        return slice.map((movie) => this.mapBasicMovie(movie));
+      }
+
       const moviesWithDetails = await Promise.all(
-        data.results.slice(0, criteria.limit || 20).map(movie => 
-          this.enrichMovieData(movie)
-        )
+        slice.map((movie) => this.enrichMovieData(movie))
       );
 
       return moviesWithDetails;
@@ -213,23 +255,19 @@ export class TMDBAPI {
    */
   private async enrichMovieData(movie: TMDBMovie): Promise<MovieResult> {
     try {
-      // Fetch movie details
-      const detailsUrl = `${this.baseUrl}/movie/${movie.id}?api_key=${this.apiKey}`;
+      // Single request: details + credits (was 2 requests per movie)
+      const detailsUrl = `${this.baseUrl}/movie/${movie.id}?api_key=${this.apiKey}&append_to_response=credits`;
       const detailsResponse = await fetch(detailsUrl);
-      const details: TMDBDetails = await detailsResponse.json();
-      
-      // Fetch credits (cast and crew)
-      const creditsUrl = `${this.baseUrl}/movie/${movie.id}/credits?api_key=${this.apiKey}`;
-      const creditsResponse = await fetch(creditsUrl);
-      const credits: TMDBCredits = await creditsResponse.json();
+      const details = (await detailsResponse.json()) as TMDBDetails & { credits?: TMDBCredits };
+      const credits = details.credits;
       
       // Get director
-      const director = credits.crew.find(person => person.job === 'Director')?.name;
+      const director = credits?.crew?.find((person) => person.job === 'Director')?.name;
       
       // Get main cast (top 5)
-      const mainCast = credits.cast
+      const mainCast = (credits?.cast || [])
         .slice(0, 5)
-        .map(actor => actor.name);
+        .map((actor) => actor.name);
       
       // Map genre IDs to names
       const genreNames = details.genres.map(g => g.name);
@@ -514,7 +552,11 @@ export class TMDBAPI {
   /**
    * Get trending movies
    */
-  async getTrending(timeWindow: 'day' | 'week' = 'week', limit: number = 20): Promise<MovieResult[]> {
+  async getTrending(
+    timeWindow: 'day' | 'week' = 'week',
+    limit: number = 20,
+    enrichDetails: boolean = false
+  ): Promise<MovieResult[]> {
     try {
       const url = `${this.baseUrl}/trending/movie/${timeWindow}?api_key=${this.apiKey}`;
       const response = await fetch(url, {
@@ -526,10 +568,13 @@ export class TMDBAPI {
       }
 
       const data: TMDBResponse = await response.json();
-      
-      const enriched = await Promise.all(
-        data.results.slice(0, limit).map(movie => this.enrichMovieData(movie))
-      );
+      const slice = data.results.slice(0, limit);
+
+      if (!enrichDetails) {
+        return slice.map((movie) => this.mapBasicMovie(movie));
+      }
+
+      const enriched = await Promise.all(slice.map((movie) => this.enrichMovieData(movie)));
 
       return enriched;
     } catch (error) {
