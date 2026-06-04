@@ -35,7 +35,7 @@
     "ai",
     "tmdb"
   ],
-  "author": "",
+  "author": "Baktash Ansari <baktash.ansari1381@gmail.com>",
   "license": "MIT",
   "dependencies": {
     "agents": "^0.1.0"
