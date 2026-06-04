@@ -114,6 +114,8 @@ describe('auth API — session & tokens', () => {
   it('refreshes access token', async () => {
     const session = new TestSession();
     await session.register();
+    const oldRefresh = session.tokens.refreshToken;
+
     const res = await api<{ tokens: { accessToken: string; refreshToken: string } }>(
       '/auth/refresh',
       {
@@ -123,7 +125,29 @@ describe('auth API — session & tokens', () => {
     );
     expect(res.status).toBe(200);
     expect(res.data.tokens.accessToken).toBeTruthy();
-    expect(res.data.tokens.accessToken).not.toBe(session.tokens.accessToken);
+    expect(res.data.tokens.refreshToken).toBeTruthy();
+
+    // New access token must authenticate
+    const me = await api<{ email: string }>('/auth/me', {
+      token: res.data.tokens.accessToken,
+    });
+    expect(me.status).toBe(200);
+    expect(me.data.email).toBe(session.email.toLowerCase());
+
+    // Refresh token rotation: old refresh token must not be reusable
+    const reused = await api('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken: oldRefresh }),
+    });
+    expect(reused.status).toBe(401);
+
+    // New refresh token must work for a second refresh
+    const second = await api('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken: res.data.tokens.refreshToken }),
+    });
+    expect(second.status).toBe(200);
+    expect(second.data.tokens.accessToken).toBeTruthy();
   });
 
   it('rejects invalid refresh token', async () => {

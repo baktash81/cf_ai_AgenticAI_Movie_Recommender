@@ -40,6 +40,7 @@ export interface JWTPayload {
   email: string;
   iat: number;
   exp: number;
+  jti?: string; // unique per issuance — ensures rotated tokens differ
 }
 
 export interface RegisterRequest {

@@ -148,13 +148,13 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
  */
 export async function generateTokens(user: User, secret: string): Promise<AuthTokens> {
   const accessToken = await createJWT(
-    { sub: user.id, email: user.email },
+    { sub: user.id, email: user.email, jti: generateId() },
     secret,
     ACCESS_TOKEN_EXPIRY
   );
   
   const refreshToken = await createJWT(
-    { sub: user.id, email: user.email },
+    { sub: user.id, email: user.email, jti: generateId() },
     secret,
     REFRESH_TOKEN_EXPIRY
   );
