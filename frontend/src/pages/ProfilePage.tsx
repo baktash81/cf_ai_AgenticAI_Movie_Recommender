@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { usePreferences } from '../hooks/useMovies';
 import PreferenceForm from '../components/profile/PreferenceForm';
+import AboutYourTaste from '../components/profile/AboutYourTaste';
 import { User, Mail, Loader2, Check, Edit2 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -54,6 +55,8 @@ export default function ProfilePage() {
   return (
     <div className="page-container-narrow space-y-4 sm:space-y-6">
       <h1 className="page-title">Profile</h1>
+
+      <AboutYourTaste />
 
       {/* User info */}
       <div className="card">
@@ -122,9 +125,17 @@ export default function ProfilePage() {
 
       {/* Preferences */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
           Your Preferences
         </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          What you told us in your own words. We merge in insights from your movie ratings every few hours.
+          {preferences?.tasteSyncedAt && (
+            <span className="block mt-1 text-xs">
+              Last taste sync: {new Date(preferences.tasteSyncedAt).toLocaleString()}
+            </span>
+          )}
+        </p>
 
         {prefsLoading ? (
           <div className="flex items-center justify-center py-8">

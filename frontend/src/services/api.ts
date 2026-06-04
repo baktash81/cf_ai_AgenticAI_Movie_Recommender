@@ -11,7 +11,7 @@ import type {
   ConversationWithMessages,
   FeedbackType,
   MovieFeedback,
-  TasteProfileSummary,
+  TasteProfileResponse,
   WatchHistoryItem,
   WatchlistAddRequest,
   MovieReview,
@@ -237,7 +237,7 @@ export const feedbackApi = {
 };
 
 export const tasteProfileApi = {
-  get: async (): Promise<{ profile: any; summary: TasteProfileSummary }> => {
+  get: async (): Promise<TasteProfileResponse> => {
     const response = await api.get('/taste-profile');
     return response.data;
   },

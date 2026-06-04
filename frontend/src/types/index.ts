@@ -65,6 +65,8 @@ export interface MoviePreferences {
   preferredDecades?: string[];
   avoidAdultContent: boolean;
   preferenceStyle: 'diverse' | 'similar' | 'trending' | 'classic' | 'balanced';
+  tasteSyncedAt?: string;
+  tasteDerived?: boolean;
 }
 
 export interface PreferenceAnalysisResult {
@@ -130,6 +132,14 @@ export interface MovieFeedback {
   updated_at: string;
 }
 
+export interface FeedbackBreakdown {
+  love: number;
+  like: number;
+  dislike: number;
+  not_interested: number;
+  total: number;
+}
+
 export interface TasteProfileSummary {
   topGenres: Array<{ name: string; score: number }>;
   topActors: Array<{ name: string; score: number }>;
@@ -138,6 +148,14 @@ export interface TasteProfileSummary {
   avgRatingPreference: number;
   profileStrength: number;
   totalMoviesRated: number;
+}
+
+export interface TasteProfileResponse {
+  profile: unknown | null;
+  summary: TasteProfileSummary;
+  feedbackBreakdown: FeedbackBreakdown;
+  lastSyncedAt: string | null;
+  synced?: boolean;
 }
 
 export interface WatchHistoryItem {

@@ -24,7 +24,7 @@ export default function TasteProfile() {
     return null;
   }
 
-  const { summary } = data;
+  const { summary, lastSyncedAt } = data;
   const strengthPercentage = Math.round(summary.profileStrength * 100);
 
   return (
@@ -98,6 +98,12 @@ export default function TasteProfile() {
           items={summary.preferredDecades}
           color="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
         />
+      )}
+
+      {lastSyncedAt && summary.totalMoviesRated > 0 && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+          Synced with your preferences
+        </p>
       )}
 
       {/* Average Rating Preference */}

@@ -102,6 +102,7 @@ export function usePreferences() {
     mutationFn: preferencesApi.analyze,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['preferences'] });
+      queryClient.invalidateQueries({ queryKey: ['taste-profile'] });
     },
   });
 

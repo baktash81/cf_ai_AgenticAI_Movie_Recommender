@@ -24,6 +24,7 @@ import {
   authenticateRequest,
 } from './utils/auth';
 import { cachedJsonResponse } from './utils/cache';
+import { getTasteProfilePayload, maybeSyncTasteToPreferences } from './utils/taste-sync';
 
 // Export Workflows and Agents (Durable Objects) for Cloudflare Workers
 export { MovieSearchWorkflow };
@@ -413,6 +414,8 @@ export default {
             { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
+
+        await maybeSyncTasteToPreferences(env, auth.userId);
 
         const agentId = env.MOVIE_PREFERENCE_ANALYSIS_AGENT.idFromName(auth.userId);
         const agent = env.MOVIE_PREFERENCE_ANALYSIS_AGENT.get(agentId);
@@ -1294,11 +1297,14 @@ Always respond with ONLY the JSON object, nothing else.`
           // Update taste profile
           await updateTasteProfile(env, auth.userId, body.movieId, body.feedbackType, body.movieData);
 
+          const tasteSync = await maybeSyncTasteToPreferences(env, auth.userId);
+
           return new Response(
             JSON.stringify({ 
               success: true, 
               feedbackId,
-              tasteProfileUpdated: true 
+              tasteProfileUpdated: true,
+              preferencesSynced: tasteSync.synced,
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -1353,58 +1359,19 @@ Always respond with ONLY the JSON object, nothing else.`
         }
 
         try {
+          const payload = await getTasteProfilePayload(env, auth.userId, { sync: true });
           const profile = await env.MOVIE_DB.prepare(`
             SELECT * FROM user_taste_profiles WHERE user_id = ?
           `).bind(auth.userId).first();
 
-          if (!profile) {
-            return new Response(
-              JSON.stringify({ 
-                profile: null,
-                summary: {
-                  topGenres: [],
-                  topActors: [],
-                  topDirectors: [],
-                  preferredDecades: [],
-                  avgRatingPreference: 7.0,
-                  profileStrength: 0,
-                  totalMoviesRated: 0
-                }
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-
-          // Parse JSON fields and create summary
-          const genreScores = JSON.parse((profile as any).genre_scores || '{}');
-          const actorScores = JSON.parse((profile as any).actor_scores || '{}');
-          const directorScores = JSON.parse((profile as any).director_scores || '{}');
-          const decadeScores = JSON.parse((profile as any).decade_scores || '{}');
-
-          const summary = {
-            topGenres: Object.entries(genreScores)
-              .sort((a, b) => (b[1] as number) - (a[1] as number))
-              .slice(0, 5)
-              .map(([name, score]) => ({ name, score })),
-            topActors: Object.entries(actorScores)
-              .sort((a, b) => (b[1] as number) - (a[1] as number))
-              .slice(0, 5)
-              .map(([name, score]) => ({ name, score })),
-            topDirectors: Object.entries(directorScores)
-              .sort((a, b) => (b[1] as number) - (a[1] as number))
-              .slice(0, 3)
-              .map(([name, score]) => ({ name, score })),
-            preferredDecades: Object.entries(decadeScores)
-              .sort((a, b) => (b[1] as number) - (a[1] as number))
-              .slice(0, 3)
-              .map(([name, score]) => ({ name, score })),
-            avgRatingPreference: (profile as any).avg_rating_preference || 7.0,
-            profileStrength: (profile as any).profile_strength || 0,
-            totalMoviesRated: (profile as any).total_feedback_count || 0
-          };
-
           return new Response(
-            JSON.stringify({ profile, summary }),
+            JSON.stringify({
+              profile: profile || null,
+              summary: payload.summary,
+              feedbackBreakdown: payload.feedbackBreakdown,
+              lastSyncedAt: payload.lastSyncedAt,
+              synced: payload.synced,
+            }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         } catch (error) {

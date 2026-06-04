@@ -40,6 +40,13 @@ export interface MoviePreferences {
   // Update tracking
   lastUpdated?: number;
   confidence?: number; // How confident we are in these preferences (0-1)
+
+  /** ISO timestamp when taste profile was last merged into preferences */
+  tasteSyncedAt?: string;
+  /** Taste profile last_computed_at at time of sync */
+  tasteProfileComputedAt?: string;
+  /** True when favorite genres/actors etc. include taste-derived entries */
+  tasteDerived?: boolean;
 }
 
 export interface MoviePreferenceAnalysisResult {
